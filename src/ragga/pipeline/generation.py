@@ -15,7 +15,7 @@ from langchain.retrievers.document_compressors import DocumentCompressorPipeline
 from langchain.schema.output_parser import StrOutputParser
 from langchain.schema.runnable import RunnableParallel
 
-from ragga.pipeline.config import Config, Configurable
+from ragga.core.config import Config, Configurable
 from ragga.pipeline.documents import VectorDatabase
 from ragga.pipeline.encoder import Encoder
 

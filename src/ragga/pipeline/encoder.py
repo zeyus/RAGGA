@@ -2,7 +2,7 @@ from types import MappingProxyType
 
 from langchain.embeddings import HuggingFaceEmbeddings
 
-from ragga.pipeline.config import Config, Configurable
+from ragga.core.config import Config, Configurable
 
 
 class Encoder(Configurable):

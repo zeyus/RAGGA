@@ -28,6 +28,7 @@ dependencies = [
   "google-search-results",
   "llama-cpp-python @ git+https://github.com/abetlen/llama-cpp-python.git",
   "langchain",
+  "mkl",
   "sentence-transformers",
   "transformers",
   "torch",

@@ -58,7 +58,7 @@ class Configurable:
                     self.config[self._config_key][key] = value
 
     def _merge_default_kwargs(self, defaults: dict, config_key: str = "kwargs"):
-        """Merge kwargs from config with default kwargs. This doesn't handle nested kwargs"""
+        """Merge kwargs from config with default kwargs. This doesn't handle nested kwargs/dicts"""
         if config_key not in self.config[self._config_key]:
             self.config[self._config_key][config_key] = dict(defaults)
         else:
@@ -68,9 +68,11 @@ class Configurable:
 
     @t.overload
     def add_config(self, config: dict) -> None: ...
+    """Set the config dictionary for the object"""
 
     @t.overload
     def add_config(self, config: str, value: str | int | float | bool | dict) -> None: ...
+    """Set a config key to the specified value for the object"""
 
     def add_config(self, config: dict | str, value: str | int | float | bool | dict | None = None) -> None:
         """Add a config to the object"""

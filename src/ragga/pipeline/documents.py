@@ -5,7 +5,7 @@ from langchain.embeddings.base import Embeddings
 from langchain.text_splitter import CharacterTextSplitter
 from langchain.vectorstores.faiss import FAISS
 
-from ragga.pipeline.config import Config, Configurable
+from ragga.core.config import Config, Configurable
 
 
 class VectorDatabase(Configurable):
