@@ -8,10 +8,10 @@ encoder:
     normalize_embeddings: False
 
 retriever:
-  passage:
-    chunk_size: 1000
-    chunk_overlap: 0
-  num_docs: 8
+  splitting:
+    chunk_size: 256
+    chunk_overlap: 16
+  num_docs: 4
 
 generator:
   llm_path: "models/llama-2-7b.Q5_K_M.gguf"
@@ -19,6 +19,7 @@ generator:
   temperature: 0.7
   max_tokens: 256
   gpu_layers: 50
+  model_kwargs: {}
 
 web:
-  serp_api_key: "YOUR_API_KEY"
+  serp_api_key: "<YOUR_API_KEY>"
