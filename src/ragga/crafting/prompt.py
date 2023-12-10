@@ -1,13 +1,20 @@
 from langchain.prompts import PromptTemplate
+from langchain.prompts import ChatPromptTemplate
 
 # temporary placeholder...we need local preprocessing
 # to handle keywords etc (search? dates?)
 simple_template = """
-Use the following pieces of context to answer the question at the end taking in consideration the dates:
+You are an AI assistant with access to the user's personal notes and internet search.
+Use the following context to help answer the user's query at the end.
+
+CONTEXT START
+
+Today is {date}. Here are some excerpts from relevante notes:
 {context}
 
+CONTEXT END
 
-Question: {question}
+Query: {question}
 Answer: """
 
 simple_prompt = PromptTemplate.from_template(simple_template)

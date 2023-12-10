@@ -6,12 +6,14 @@ duckduckgo-search
 # Main version of llama-cpp-python
 # due to error on unload (__del__) of the library
 git+https://github.com/abetlen/llama-cpp-python.git
-langchain
+markdown
 sentence-transformers
 transformers
 types-PyYAML
+unstructured
 --pre
 --index-url https://download.pytorch.org/whl/nightly/cu121
+langchain
 torch
 torchvision
 torchaudio

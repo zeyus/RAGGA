@@ -6,10 +6,19 @@ from types import MappingProxyType
 import yaml
 
 
+def tuple_constructor(loader, node):
+    # Load the sequence of values from the YAML node
+    values = loader.construct_sequence(node)
+    # Return a tuple constructed from the sequence
+    return tuple(values)
+
+# Register the constructor with PyYAML
+yaml.SafeLoader.add_constructor("tag:yaml.org,2002:python/tuple", tuple_constructor)
+
 class Config:
     def __init__(self, config_path: str | Path | None = None, config: dict | None = None):
         if config_path is not None:
-            self.config = yaml.safe_load(open(config_path))
+            self.config = yaml.load(open(config_path), Loader=yaml.SafeLoader)
         elif config is not None:
             self.config = config
         else:
@@ -47,6 +56,11 @@ class Configurable:
         super().__init__()
         self.config = conf
         self._set_config()
+
+
+    @property
+    def key(self) -> str:
+        return self._config_key
 
     def _set_config(self) -> None:
         """Set the config for the object"""

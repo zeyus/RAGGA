@@ -1,4 +1,4 @@
-import re
+from datetime import UTC, datetime
 from operator import itemgetter
 from types import MappingProxyType
 
@@ -13,11 +13,10 @@ from langchain.prompts import PromptTemplate
 from langchain.retrievers import ContextualCompressionRetriever
 from langchain.retrievers.document_compressors import DocumentCompressorPipeline, EmbeddingsFilter
 from langchain.schema.output_parser import StrOutputParser
-from langchain.schema.runnable import RunnableParallel
+from langchain.schema.runnable import RunnableParallel, RunnablePassthrough
 
 from ragga.core.config import Config, Configurable
 from ragga.pipeline.documents import VectorDatabase
-from ragga.pipeline.encoder import Encoder
 
 
 class Generator(Configurable):
@@ -29,16 +28,16 @@ class Generator(Configurable):
             "llm_path": "llm",
             "context_length": 1024,
             "temperature": 0.9,
-            "gpu_layers": 2,
+            "gpu_layers": 50,
             "max_tokens": 128,
             "n_batch": 256,
             "compress": False,
+            "similarity_threshold": None,
         }
     )
 
     def __init__(
-        self, conf: Config, template: PromptTemplate, vectorstore: VectorDatabase, encoder: Encoder
-    ) -> None:
+        self, conf: Config, template: PromptTemplate, vectorstore: VectorDatabase) -> None:
         super().__init__(conf)
 
         default_kwargs = {
@@ -56,9 +55,13 @@ class Generator(Configurable):
             "vocab_only": False,
             "suffix": None,
         }
+        search_kwargs = {
+            "k": self.config[vectorstore.key]["num_docs"],
+        }
         self._merge_default_kwargs(default_kwargs, "model_kwargs")
+        self._merge_default_kwargs(search_kwargs, "search_kwargs")
         # load Llama from local file
-        self.llm = LlamaCpp(
+        self._llm = LlamaCpp(
             model_path=self.config[self._config_key]["llm_path"],
             n_ctx=self.config[self._config_key]["context_length"],
             temperature=self.config[self._config_key]["temperature"],
@@ -69,31 +72,35 @@ class Generator(Configurable):
             **self.config[self._config_key]["model_kwargs"],
         )
         # create prompt template
-        self.max_prompt_length = (
-            self.config["generator"]["context_length"] - self.config["generator"]["max_tokens"] - 100 - 1
+        self._max_prompt_length = (
+            self.config[self._config_key]["context_length"] - self.config[self._config_key]["max_tokens"] - 100 - 1
         )  # placeholder, will need to calculate this
-        self.prompt = template
-        self.output_parser = StrOutputParser()
-        self.vectorstore = vectorstore
-        self.retriever = vectorstore.db.as_retriever(search_type="similarity", k=self.config["retriever"]["num_docs"])
-        self.encoder = encoder
-        self.embeddings_filter = EmbeddingsFilter(embeddings=encoder.encoder, similarity_threshold=0.76)
-        self.reorder = LongContextReorder()
-        self.pipeline = DocumentCompressorPipeline(transformers=[self.embeddings_filter, self.reorder])
-        self.compression_retriever = ContextualCompressionRetriever(
-            base_compressor=self.pipeline, base_retriever=self.retriever
-        )
-        self.inputs = RunnableParallel(
+        self._prompt = template
+        self._output_parser = StrOutputParser()
+        self._vectorstore = vectorstore
+        self._embeddings_filter = EmbeddingsFilter(
+            embeddings=self._vectorstore.encoder.embeddings,
+            similarity_threshold=self.config[self._config_key]["similarity_threshold"])
+        self._reorder = LongContextReorder()
+        self._pipeline = DocumentCompressorPipeline(transformers=[self._embeddings_filter, self._reorder])
+        if self.config[self._config_key]["compress"]:
+            self._compression_retriever = ContextualCompressionRetriever(
+                base_compressor=self._pipeline, base_retriever=self._vectorstore.retriever
+            )
+            self._retriever = self._compression_retriever
+        else:
+            self._retriever = self._vectorstore.retriever
+        self._inputs = RunnableParallel(
             {
                 "question": itemgetter("question"),
+                "date": lambda x: datetime.now(UTC).strftime("%Y-%m-%d"),  # noqa: ARG005
                 "context": itemgetter("question")
-                | (self.compression_retriever if self.config[self._config_key]["compress"] else self.retriever)
+                | self._retriever
                 | self.condense_context,
             }
         )
         # RunnablePassthrough(func=lambda x: print(x))
-        self.chain = self.inputs | self.prompt | self.llm | self.output_parser
-        self.context_split = re.compile(r"^--------------------$", re.MULTILINE)
+        self._chain = self._inputs | self._prompt | self._llm | self._output_parser
 
     def condense_context(self, ctx: list[Document]) -> str:
         """
@@ -104,8 +111,11 @@ class Generator(Configurable):
             str: condensed context
         """
         condensed = "\n".join([d.page_content for d in ctx])
-        if len(condensed) > self.max_prompt_length:
-            condensed = condensed[: self.max_prompt_length]
+        print(ctx[0].metadata)
+        print(f"Condensed context: {condensed}, length: {len(condensed)}")
+        if len(condensed) > self._max_prompt_length:
+            print(f"Context too long, truncating to {self._max_prompt_length} characters")
+            condensed = condensed[: self._max_prompt_length]
         return condensed
 
     def get_answer(self, question: str) -> str:
@@ -118,4 +128,4 @@ class Generator(Configurable):
             Iterator[str]: llm answer
         """
 
-        return self.chain.invoke({"question": question})
+        return self._chain.invoke({"question": question})
