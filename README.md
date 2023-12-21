@@ -23,9 +23,6 @@ TODO: Can faiss be added / uploaded as whl somehwere?
 pip install ragga
 ```
 
-serpapi.com : if you want web search results, you can get an API key from serpapi.com and add it to the config file.
-
-
 ## License
 
 `ragga` is distributed under the terms of the [MIT](https://spdx.org/licenses/MIT.html) license.

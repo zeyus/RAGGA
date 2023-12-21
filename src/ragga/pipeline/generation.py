@@ -1,3 +1,4 @@
+import logging
 from datetime import UTC, datetime
 from operator import itemgetter
 from types import MappingProxyType
@@ -9,13 +10,14 @@ from langchain.document_transformers import (
     LongContextReorder,
 )
 from langchain.llms.llamacpp import LlamaCpp
-from langchain.prompts import PromptTemplate
 from langchain.retrievers import ContextualCompressionRetriever
 from langchain.retrievers.document_compressors import DocumentCompressorPipeline, EmbeddingsFilter
 from langchain.schema.output_parser import StrOutputParser
-from langchain.schema.runnable import RunnableParallel, RunnablePassthrough
+from langchain.schema.runnable import RunnableParallel
+from langchain_core.vectorstores import VectorStoreRetriever
 
 from ragga.core.config import Config, Configurable
+from ragga.crafting.prompt import Prompt
 from ragga.pipeline.documents import VectorDatabase
 
 
@@ -31,13 +33,15 @@ class Generator(Configurable):
             "gpu_layers": 50,
             "max_tokens": 128,
             "n_batch": 256,
-            "compress": False,
-            "similarity_threshold": None,
+            "compress": True,
+            "similarity_threshold": 0.8,
         }
     )
 
+    _retriever: ContextualCompressionRetriever | VectorStoreRetriever
+
     def __init__(
-        self, conf: Config, template: PromptTemplate, vectorstore: VectorDatabase) -> None:
+        self, conf: Config, prompt: Prompt, vectorstore: VectorDatabase) -> None:
         super().__init__(conf)
 
         default_kwargs = {
@@ -75,7 +79,8 @@ class Generator(Configurable):
         self._max_prompt_length = (
             self.config[self._config_key]["context_length"] - self.config[self._config_key]["max_tokens"] - 100 - 1
         )  # placeholder, will need to calculate this
-        self._prompt = template
+        self._prompt = prompt
+        self._template = prompt.get_prompt()
         self._output_parser = StrOutputParser()
         self._vectorstore = vectorstore
         self._embeddings_filter = EmbeddingsFilter(
@@ -90,17 +95,19 @@ class Generator(Configurable):
             self._retriever = self._compression_retriever
         else:
             self._retriever = self._vectorstore.retriever
-        self._inputs = RunnableParallel(
+        self._inputs = RunnableParallel(  # type: ignore
             {
+                "user": lambda _x: self._prompt.user_name,
                 "question": itemgetter("question"),
-                "date": lambda x: datetime.now(UTC).strftime("%Y-%m-%d"),  # noqa: ARG005
+                "date": lambda _x: datetime.now(UTC).strftime("%Y-%m-%d"),
                 "context": itemgetter("question")
                 | self._retriever
                 | self.condense_context,
-            }
+            }  # type: ignore
         )
+        self._llm_with_stop = self._llm.bind(stop=[f"\n{self._prompt.user_name}:"])
         # RunnablePassthrough(func=lambda x: print(x))
-        self._chain = self._inputs | self._prompt | self._llm | self._output_parser
+        self._chain = self._inputs | self._template | self._llm_with_stop | self._output_parser
 
     def condense_context(self, ctx: list[Document]) -> str:
         """
@@ -111,10 +118,8 @@ class Generator(Configurable):
             str: condensed context
         """
         condensed = "\n".join([d.page_content for d in ctx])
-        print(ctx[0].metadata)
-        print(f"Condensed context: {condensed}, length: {len(condensed)}")
         if len(condensed) > self._max_prompt_length:
-            print(f"Context too long, truncating to {self._max_prompt_length} characters")
+            logging.warning(f"Context too long, truncating to {self._max_prompt_length} characters")
             condensed = condensed[: self._max_prompt_length]
         return condensed
 

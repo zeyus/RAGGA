@@ -1,10 +1,11 @@
+import logging
 import typing as t
 from pathlib import Path
 from types import MappingProxyType
 
 from langchain.docstore.document import Document
 from langchain.indexes import SQLRecordManager, index
-from langchain.text_splitter import CharacterTextSplitter
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.vectorstores import VectorStore
 from langchain.vectorstores.faiss import FAISS
 from langchain_core.vectorstores import VectorStoreRetriever
@@ -33,17 +34,19 @@ class VectorDatabase(Configurable):
     _db_is_stale: bool = True
     _encoder: Encoder
     _record_manager: SQLRecordManager
-
+    _loaded_from_disk: bool = False
+    _faiss_index: str = "retriever_index"
 
     def __init__(self, conf: Config, encoder: Encoder, namespace: str | None = None) -> None:
         super().__init__(conf)
-        self._text_splitter = CharacterTextSplitter(
+        self._text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=self.config[self._config_key]["splitting"]["chunk_size"],
             chunk_overlap=self.config[self._config_key]["splitting"]["chunk_overlap"],
         )
         self._index_db_path = self.config[self.key]["cache_dir"] + "/.record_index.db"
         self._vector_db_path = Path(self.config[self.key]["cache_dir"] + "/.faiss")
         self._encoder = encoder
+        self._documents = []
         self._vector_store = FAISS
         self._namespace = namespace if namespace is not None else self._config_key
         self._record_manager = SQLRecordManager(
@@ -53,6 +56,7 @@ class VectorDatabase(Configurable):
 
         if not self._vector_db_path.exists():
             self._vector_db_path.mkdir(parents=True)
+        self._create_db()
 
     @property
     def documents(self) -> list[Document]:
@@ -70,6 +74,8 @@ class VectorDatabase(Configurable):
 
     @property
     def passages(self) -> list[Document]:
+        if self.documents is None or self.documents == []:
+            return []
         if self._passages is None or self._db_is_stale:
             self._passages = self._text_splitter.split_documents(self.documents)
         return self._passages
@@ -112,8 +118,10 @@ class VectorDatabase(Configurable):
         if self._db is None:
             msg = "Database failed to initialize."
             raise ValueError(msg)
+        if self.passages is None or self.passages == []:
+            return
         self._add_to_index(self.passages)
-        self._db.save_local(folder_path=str(self._vector_db_path), index_name="index")
+        self._db.save_local(folder_path=str(self._vector_db_path), index_name=self._faiss_index)
         self._db_is_stale = False
 
     def _create_db(self) -> None:
@@ -122,13 +130,21 @@ class VectorDatabase(Configurable):
         """
         self._record_manager.create_schema()
         if self._db is None:
-            if (self._vector_db_path / "index.faiss").exists():
+            logging.info("Setting up FAISSS vector database")
+            if ((self._vector_db_path / f"{self._faiss_index}.faiss").exists()
+                and (self._vector_db_path / f"{self._faiss_index}.pkl").exists()):
+                logging.info("Loading FAISS vector database from disk")
                 self._db = self._vector_store.load_local(
                     folder_path=str(self._vector_db_path),
                     embeddings=self._encoder.embeddings,
-                    index_name="index",
+                    index_name=self._faiss_index,
                 )
+                self._loaded_from_disk = True
+                logging.warning(
+                    "FAISS vector database loaded from disk: "
+                    "No documents will exist in this object, but they will be available in the database.")
             else:
+                logging.info("Creating new FAISS vector database")
                 self._db = self._vector_store.from_texts(["ZEROINDEX"], self._encoder.embeddings)
         self._update_index()
 
@@ -166,3 +182,7 @@ class VectorDatabase(Configurable):
                 search_kwargs={"k": self.config[self._config_key]["num_docs"]},
             )
         return self._retriever
+
+    @property
+    def loaded_from_disk(self) -> bool:
+        return self._loaded_from_disk

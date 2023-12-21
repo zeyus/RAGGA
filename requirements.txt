@@ -10,6 +10,7 @@ git+https://github.com/abetlen/llama-cpp-python.git
 markdown
 sentence-transformers
 transformers
+simsimd
 types-PyYAML
 unstructured
 --pre

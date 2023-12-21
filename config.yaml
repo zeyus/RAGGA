@@ -18,14 +18,15 @@ retriever:
   cache_dir: ".cache"
 
 generator:
-  llm_path: "models/llama-2-7b.Q5_K_M.gguf"
-  context_length: 4096
+  llm_path: "models/phi-2.Q5_K_M.gguf"
+  context_length: 2048
   temperature: 0.8
   max_tokens: 256
   gpu_layers: 50
   model_kwargs: {}
   search_kwargs: {}
-  similarity_threshold: null
+  similarity_threshold: 0.8
+  compress: True
 
 dataset:
   path: "data"
@@ -38,5 +39,11 @@ dataset:
       include_metadata: True
       languages: ["en"] # language can be "auto", or a list of known languages
       chunking_strategy: "by_title" # "by_title" or null (no chunking)
-web:
-  serp_api_key: "<YOUR_API_KEY>"
+prompt:
+  user_name: "User"
+  AI_name: "PAI"
+  instruct_user: "Instruct" # usually "System", or "Instruct"
+  instructions: "You are \"<<AI_NAME>>\", {user}'s personal AI assistant. Use the following to help answer {user}'s question: \"{question}\""
+  pre_context: "Relevant personal notes from {user}:"
+  post_context: ""
+  user_query: "{question}"
