@@ -5,6 +5,12 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent / "src"))
 from ragga import ChatPrompt, Config, Encoder, Generator, MarkdownDataset, Search, VectorDatabase  # noqa: E402
 
+
+def output_model_response_stream(model_response: str) -> None:
+    sys.stdout.write(model_response)
+    sys.stdout.flush()
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     search = Search()
@@ -16,11 +22,12 @@ if __name__ == "__main__":
         dataset = MarkdownDataset(conf)
         faiss_db.documents = dataset.documents
     generator = Generator(conf, prompt, faiss_db)
-
+    generator.subscribe(output_model_response_stream)
     QUERY = "What have I written about sonification?"
     logging.info(f"Query: {QUERY}")
     generator.get_answer(QUERY)
-
+    # /again
+    # /more or /continue
     while True:
         try:
             query = input("Enter query: ")

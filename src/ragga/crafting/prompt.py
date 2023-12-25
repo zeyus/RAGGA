@@ -65,7 +65,9 @@ class ChatPrompt(Prompt):
             "user_name": "User",
             "AI_name": "PAI",
             "instruct_user": "Instruct",
-            "instructions": "You are \"<<AI_NAME>>\", {user}'s personal AI assistant. Use the following to help answer {user}'s question: \"{question}\"",
+            "instructions":
+                "You are \"<<AI_NAME>>\", {user}'s personal AI assistant. "
+                "Use the following to help answer {user}'s question: \"{question}\"",
             "pre_context": "Relevant personal notes from the user:",
             "post_context": "",
             "user_query": "{question}",
@@ -94,7 +96,7 @@ class ChatPrompt(Prompt):
                 template="How can I help?"
             ),
             ChatMessagePromptTemplate.from_template(
-                role=self.config[self._config_key]["user_name"],
+                role=self.config[self._config_key]["user_name"] + " query:",
                 template=self.config[self._config_key]["user_query"]
             )
         ])

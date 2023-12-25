@@ -46,4 +46,4 @@ prompt:
   instructions: "You are \"<<AI_NAME>>\", {user}'s personal AI assistant. Use the following to help answer {user}'s question: \"{question}\""
   pre_context: "Relevant personal notes from {user}:"
   post_context: ""
-  user_query: "{question}"
+  user_query: "{question}\n\n<<AI_NAME>>:"

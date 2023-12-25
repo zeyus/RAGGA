@@ -33,9 +33,15 @@ dependencies = [
   "mkl",
   "sentence-transformers",
   "simsimd",
+  "spacy",
   "transformers",
   "torch",
   "unstructured",
+]
+
+[project.optional-dependencies]
+cpu = [
+  "faiss-cpu",
 ]
 
 [project.urls]
@@ -52,7 +58,7 @@ dependencies = [
   "pytest",
 ]
 [tool.hatch.envs.default.env-vars]
-PIPL_INDEX_URL = "https://download.pytorch.org/whl/nightly/cu121"
+PIP_INDEX_URL = "https://download.pytorch.org/whl/nightly/cu121"
 PIP_PRE = "1"
 
 [tool.hatch.envs.default.scripts]
