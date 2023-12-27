@@ -6,7 +6,6 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
 
 from langchain.callbacks.manager import CallbackManager
-from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 from langchain.docstore.document import Document
 from langchain.document_transformers import (
     LongContextReorder,
@@ -15,12 +14,13 @@ from langchain.llms.llamacpp import LlamaCpp
 from langchain.retrievers import ContextualCompressionRetriever
 from langchain.retrievers.document_compressors import DocumentCompressorPipeline, EmbeddingsFilter
 from langchain.schema.output_parser import StrOutputParser
-from langchain.schema.runnable import RunnableParallel
+from langchain.schema.runnable import RunnableLambda, RunnableParallel
 from langchain_core.callbacks.base import BaseCallbackHandler
 from langchain_core.vectorstores import VectorStoreRetriever
 
 from ragga.core.config import Config, Configurable
 from ragga.core.dispatch import PropertyWrapper
+from ragga.crafting.commands import extract_keywords
 from ragga.crafting.prompt import Prompt
 from ragga.pipeline.documents import VectorDatabase
 
@@ -151,6 +151,13 @@ class Generator(Configurable):
         search_kwargs = {
             "k": self.config[vectorstore.key]["num_docs"],
         }
+        self._keywords = {
+            "command": "",
+            "where": "",
+            "what": "",
+            "known": False,
+        }
+        self._last_query = None
         self._model_response_handler = ModelResponseHandler()
         self._merge_default_kwargs(default_kwargs, "model_kwargs")
         self._merge_default_kwargs(search_kwargs, "search_kwargs")
@@ -191,6 +198,7 @@ class Generator(Configurable):
                 "question": itemgetter("question"),
                 "date": lambda _x: datetime.now(UTC).strftime("%Y-%m-%d"),
                 "context": itemgetter("question")
+                | RunnableLambda(self._prepare_query)
                 | self._retriever
                 | self.condense_context,
             }  # type: ignore
@@ -198,6 +206,20 @@ class Generator(Configurable):
         self._llm_with_stop = self._llm.bind(stop=[f"\n{self._prompt.user_name}:"])
         # RunnablePassthrough(func=lambda x: print(x))
         self._chain = self._inputs | self._template | self._llm_with_stop | self._output_parser
+
+    def _prepare_query(self, x: str) -> str:
+        """
+        Prepare the query for the retriever, limiting to keywords that are hopefully relevant.
+        """
+        # Get relevant keywords
+        if self._keywords["what"] is not None:
+            if self._keywords["known"] or self._keywords["where"]  is None:
+                logging.info(f"Using keyword {self._keywords['what'] } as query")
+                return self._keywords["what"]
+            logging.info(f"Using keywords {self._keywords['what'] } and {self._keywords['where']} as query")
+            return f"{self._keywords['what'] } {self._keywords['where']}"
+        logging.info(f"Using full query {x}")
+        return x
 
     def condense_context(self, ctx: list[Document]) -> str:
         """
@@ -213,6 +235,26 @@ class Generator(Configurable):
             condensed = condensed[: self._max_prompt_length]
         return condensed
 
+    def _query_keywords(self, question: str) -> str:
+        """
+        Query the keywords from the question
+        Args:
+            question (str): user's question
+        """
+        known_locations = set({"notes", "note", "writing", "writings"})
+        kw = extract_keywords(question, known_locations)
+        if kw[0] in ["redo", "repeat", "again"] and self._last_query is not None:
+            kw = extract_keywords(self._last_query, known_locations)
+            question = self._last_query
+        else:
+            self._last_query = question
+        self._keywords["command"] = kw[0]
+        self._keywords["where"] = kw[1]
+        self._keywords["what"] = kw[2]
+        self._keywords["known"] = kw[3]
+        return question
+
+
     def get_answer(self, question: str) -> str:
         """
         Get the answer from llm based on context and user's question
@@ -222,7 +264,7 @@ class Generator(Configurable):
         Returns:
             Iterator[str]: llm answer
         """
-
+        question = self._query_keywords(question)
         return self._chain.invoke({"question": question})
 
     def get_answer_stream(self, question: str) -> Iterator[str]:
@@ -234,7 +276,7 @@ class Generator(Configurable):
         Returns:
             Iterator[str]: llm answer
         """
-
+        question = self._query_keywords(question)
         return self._chain.stream({"question": question})
 
     def response_handler(self) -> ModelResponseHandler:

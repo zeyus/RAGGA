@@ -11,6 +11,7 @@ markdown
 sentence-transformers
 transformers
 simsimd
+spacy
 types-PyYAML
 unstructured
 --pre
