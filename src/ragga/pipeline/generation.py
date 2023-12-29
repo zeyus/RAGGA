@@ -14,9 +14,9 @@ from langchain.llms.llamacpp import LlamaCpp
 from langchain.retrievers import ContextualCompressionRetriever
 from langchain.retrievers.document_compressors import DocumentCompressorPipeline, EmbeddingsFilter
 from langchain.schema.output_parser import StrOutputParser
-from langchain.schema.runnable import RunnableLambda, RunnableParallel
+from langchain.schema.runnable import RunnableLambda, RunnableParallel, RunnableBranch
+from langchain_core.retrievers import BaseRetriever
 from langchain_core.callbacks.base import BaseCallbackHandler
-from langchain_core.vectorstores import VectorStoreRetriever
 
 from ragga.core.config import Config, Configurable
 from ragga.core.dispatch import PropertyWrapper
@@ -52,7 +52,7 @@ class ModelResponseHandler(BaseCallbackHandler):
         self, serialized: dict[str, Any], prompts: list[str], **kwargs: Any  # noqa: ARG002
     ) -> None:
         """Run when LLM starts running."""
-        logging.info("LLM started...")
+        logging.debug("LLM started...")
 
     def on_chat_model_start(
         self,
@@ -69,7 +69,7 @@ class ModelResponseHandler(BaseCallbackHandler):
 
     def on_llm_end(self, response: "LLMResult", **kwargs: Any) -> None:  # noqa: ARG002
         """Run when LLM ends running."""
-        logging.info("LLM ended...")
+        logging.debug("LLM ended...")
 
     def on_llm_error(self, error: "BaseException", **kwargs: Any) -> None:
         """Run when LLM errors."""
@@ -78,11 +78,11 @@ class ModelResponseHandler(BaseCallbackHandler):
         self, serialized: dict[str, Any], inputs: dict[str, Any], **kwargs: Any  # noqa: ARG002
     ) -> None:
         """Run when chain starts running."""
-        logging.info("Chain started...")
+        logging.debug("Chain started...")
 
     def on_chain_end(self, outputs: dict[str, Any], **kwargs: Any) -> None:  # noqa: ARG002
         """Run when chain ends running."""
-        logging.info("Chain ended...")
+        logging.debug("Chain ended...")
 
     def on_chain_error(self, error: "BaseException", **kwargs: Any) -> None:  # noqa: ARG002
         """Run when chain errors."""
@@ -127,10 +127,10 @@ class Generator(Configurable):
         }
     )
 
-    _retriever: ContextualCompressionRetriever | VectorStoreRetriever
+    _retriever: BaseRetriever
 
     def __init__(
-        self, conf: Config, prompt: Prompt, vectorstore: VectorDatabase) -> None:
+        self, conf: Config, prompt: Prompt, vectorstore: VectorDatabase, websearch: BaseRetriever | None = None) -> None:
         super().__init__(conf)
 
         default_kwargs = {
@@ -151,13 +151,17 @@ class Generator(Configurable):
         search_kwargs = {
             "k": self.config[vectorstore.key]["num_docs"],
         }
-        self._keywords = {
+        self._keywords: dict[str, str | bool | None] = {
             "command": "",
             "where": "",
             "what": "",
             "known": False,
         }
-        self._last_query = None
+        self._web_retriever = websearch
+        self._known_locations = set({"notes", "note", "writing", "writings"})
+        self._last_query: str | None = None
+        self._question: str | None = None
+        self._web_search: bool = False
         self._model_response_handler = ModelResponseHandler()
         self._merge_default_kwargs(default_kwargs, "model_kwargs")
         self._merge_default_kwargs(search_kwargs, "search_kwargs")
@@ -199,13 +203,24 @@ class Generator(Configurable):
                 "date": lambda _x: datetime.now(UTC).strftime("%Y-%m-%d"),
                 "context": itemgetter("question")
                 | RunnableLambda(self._prepare_query)
-                | self._retriever
+                | RunnableBranch(
+                    (lambda _: self._use_web_retriever(), self._web_retriever),  # type: ignore
+                    self._retriever
+                )
                 | self.condense_context,
             }  # type: ignore
         )
         self._llm_with_stop = self._llm.bind(stop=[f"\n{self._prompt.user_name}:"])
         # RunnablePassthrough(func=lambda x: print(x))
         self._chain = self._inputs | self._template | self._llm_with_stop | self._output_parser
+
+    def _use_web_retriever(self) -> bool:
+        """Get the retriever dropin"""
+        if self._web_search and self._web_retriever is not None:
+            logging.info("Using web retriever")
+            return True
+        logging.info("Using vector retriever")
+        return False
 
     def _prepare_query(self, x: str) -> str:
         """
@@ -215,7 +230,7 @@ class Generator(Configurable):
         if self._keywords["what"] is not None:
             if self._keywords["known"] or self._keywords["where"]  is None:
                 logging.info(f"Using keyword {self._keywords['what'] } as query")
-                return self._keywords["what"]
+                return self._keywords["what"]  # type: ignore
             logging.info(f"Using keywords {self._keywords['what'] } and {self._keywords['where']} as query")
             return f"{self._keywords['what'] } {self._keywords['where']}"
         logging.info(f"Using full query {x}")
@@ -235,24 +250,55 @@ class Generator(Configurable):
             condensed = condensed[: self._max_prompt_length]
         return condensed
 
-    def _query_keywords(self, question: str) -> str:
+    def _handle_command(self, kw: tuple[str | None, str | None, str | None, bool]) -> None:
+        """
+        Handle the command
+        """
+        logging.debug(f"Command: {kw[0]}")
+        if kw[0] in ["redo", "repeat", "again"] and self._last_query is not None:
+            kw = extract_keywords(self._last_query, self._known_locations)
+            self._question = self._last_query
+            self._set_keywords(kw)
+            return
+        if kw[0] in ["search", "find", "websearch", "google"]:
+            self._web_search = True
+            self._set_keywords(kw)
+            return
+        if kw[0] in ["exit", "quit"]:
+            self._question = "exit"
+            msg = "Exiting..."
+            raise KeyboardInterrupt(msg)
+
+        msg = "Unknown command"
+        raise LookupError(msg)
+
+    def _set_keywords(self, kw: tuple[str | None, str | None, str | None, bool]) -> None:
+        """
+        Set the keywords
+        """
+        self._keywords["command"] = kw[0]
+        self._keywords["where"] = kw[1]
+        self._keywords["what"] = kw[2]
+        self._keywords["known"] = kw[3]
+
+    def _query_keywords(self) -> None:
         """
         Query the keywords from the question
         Args:
             question (str): user's question
         """
-        known_locations = set({"notes", "note", "writing", "writings"})
-        kw = extract_keywords(question, known_locations)
-        if kw[0] in ["redo", "repeat", "again"] and self._last_query is not None:
-            kw = extract_keywords(self._last_query, known_locations)
-            question = self._last_query
-        else:
-            self._last_query = question
-        self._keywords["command"] = kw[0]
-        self._keywords["where"] = kw[1]
-        self._keywords["what"] = kw[2]
-        self._keywords["known"] = kw[3]
-        return question
+        if self._question is None:
+            msg = "No question to query"
+            raise ValueError(msg)
+        self._web_search = False
+        kw = extract_keywords(self._question, self._known_locations)
+        try:
+            self._handle_command(kw)
+            return
+        except LookupError:
+            logging.debug("Unknown command, using full query")
+            self._set_keywords(kw)
+            self._last_query = self._question
 
 
     def get_answer(self, question: str) -> str:
@@ -264,8 +310,9 @@ class Generator(Configurable):
         Returns:
             Iterator[str]: llm answer
         """
-        question = self._query_keywords(question)
-        return self._chain.invoke({"question": question})
+        self._question = question
+        self._query_keywords()
+        return self._chain.invoke({"question": self._question})
 
     def get_answer_stream(self, question: str) -> Iterator[str]:
         """
@@ -276,8 +323,9 @@ class Generator(Configurable):
         Returns:
             Iterator[str]: llm answer
         """
-        question = self._query_keywords(question)
-        return self._chain.stream({"question": question})
+        self._question = question
+        self._query_keywords()
+        return self._chain.stream({"question": self._question})
 
     def response_handler(self) -> ModelResponseHandler:
         """Get the response handler"""

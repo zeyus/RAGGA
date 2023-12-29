@@ -3,7 +3,15 @@ import sys
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent / "src"))
-from ragga import ChatPrompt, Config, Encoder, Generator, MarkdownDataset, Search, VectorDatabase  # noqa: E402
+from ragga import (  # noqa: E402
+    ChatPrompt,
+    Config,
+    Encoder,
+    Generator,
+    MarkdownDataset,
+    VectorDatabase,
+    WebSearchRetriever,
+)
 
 
 def output_model_response_stream(model_response: str) -> None:
@@ -12,8 +20,7 @@ def output_model_response_stream(model_response: str) -> None:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-    search = Search()
+    logging.basicConfig(level=logging.DEBUG)
     conf = Config(config_path=Path(__file__).parent / "_config.yaml")
     encoder = Encoder(conf)
     faiss_db = VectorDatabase(conf, encoder)
@@ -21,7 +28,8 @@ if __name__ == "__main__":
     if not faiss_db.loaded_from_disk:
         dataset = MarkdownDataset(conf)
         faiss_db.documents = dataset.documents
-    generator = Generator(conf, prompt, faiss_db)
+    # Websearch is optional
+    generator = Generator(conf, prompt, faiss_db, websearch=WebSearchRetriever)
     generator.subscribe(output_model_response_stream)
     QUERY = "What have I written about sonification?"
     logging.info(f"Query: {QUERY}")

@@ -83,6 +83,8 @@ dependencies = [
   "mypy>=1.0.0",
   "ruff>=0.0.243",
   "types-PyYaml",
+  "types-requests",
+  "types-beautifulsoup4",
 ]
 [tool.hatch.envs.lint.scripts]
 typing = "mypy --install-types --non-interactive {args:src/ragga tests}"

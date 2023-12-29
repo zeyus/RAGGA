@@ -1,5 +1,5 @@
 import spacy
-from spacy.cli import download
+from spacy.cli.download import download
 
 try:
     nlp = spacy.load("en_core_web_sm")

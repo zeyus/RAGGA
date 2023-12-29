@@ -21,7 +21,6 @@ class MarkdownDataset(Configurable):
     def __init__(self, conf: Config) -> None:
         super().__init__(conf)
         self._documents: list[Document] | None = None
-        self._files = []
         default_loader_kwargs = {
             "mode": "single",
             "unstructured_kwargs": {
