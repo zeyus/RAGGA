@@ -14,9 +14,9 @@ from langchain.llms.llamacpp import LlamaCpp
 from langchain.retrievers import ContextualCompressionRetriever
 from langchain.retrievers.document_compressors import DocumentCompressorPipeline, EmbeddingsFilter
 from langchain.schema.output_parser import StrOutputParser
-from langchain.schema.runnable import RunnableLambda, RunnableParallel, RunnableBranch
-from langchain_core.retrievers import BaseRetriever
+from langchain.schema.runnable import RunnableBranch, RunnableLambda, RunnableParallel
 from langchain_core.callbacks.base import BaseCallbackHandler
+from langchain_core.retrievers import BaseRetriever
 
 from ragga.core.config import Config, Configurable
 from ragga.core.dispatch import PropertyWrapper
@@ -130,7 +130,11 @@ class Generator(Configurable):
     _retriever: BaseRetriever
 
     def __init__(
-        self, conf: Config, prompt: Prompt, vectorstore: VectorDatabase, websearch: BaseRetriever | None = None) -> None:
+        self, conf: Config,
+        prompt: Prompt,
+        vectorstore: VectorDatabase,
+        websearch: BaseRetriever | None = None
+    ) -> None:
         super().__init__(conf)
 
         default_kwargs = {
