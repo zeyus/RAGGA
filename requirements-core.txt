@@ -1,15 +1,12 @@
-accelerate
-beautifulsoup4
-bitsandbytes
-datasets
-duckduckgo-search
-google-search-results
-llama-cpp-python @ git+https://github.com/abetlen/llama-cpp-python.git
-langchain
-markdown
-mkl
-sentence-transformers
-simsimd
-spacy
-transformers
-unstructured
+accelerate==0.25.0
+beautifulsoup4==4.12.2
+bitsandbytes==0.41.3
+datasets==2.16.1
+langchain==0.0.353
+markdown==3.5.1
+mkl==2024.0.0
+sentence-transformers==2.2.2
+simsimd==3.6.1
+spacy==3.7.2
+transformers==4.36.2
+unstructured==0.11.6
