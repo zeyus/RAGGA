@@ -5,7 +5,7 @@ encoder:
   cache_dir: ".cache"
 
   model_kwargs: 
-    device: "cuda"
+    device: "cuda" # "cuda" for NVIDIA GPU or "cpu"
 
   encode_kwargs:
     normalize_embeddings: False
