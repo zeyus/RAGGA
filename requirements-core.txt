@@ -1,0 +1,15 @@
+accelerate
+beautifulsoup4
+bitsandbytes
+datasets
+duckduckgo-search
+google-search-results
+llama-cpp-python @ git+https://github.com/abetlen/llama-cpp-python.git
+langchain
+markdown
+mkl
+sentence-transformers
+simsimd
+spacy
+transformers
+unstructured

@@ -1,10 +1,10 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-requirements-txt"]
 build-backend = "hatchling.build"
 
 [project]
 name = "ragga"
-dynamic = ["version"]
+dynamic = ["version", "dependencies", "optional-dependencies"]
 description = 'Retrieval Augmented Generation (RAG) - General Assistant'
 readme = "README.md"
 requires-python = ">=3.11"
@@ -20,29 +20,15 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = [
-  "accelerate",
-  "beautifulsoup4",
-  "bitsandbytes",
-  "datasets",
-  "duckduckgo-search",
-  "google-search-results",
-  "llama-cpp-python @ git+https://github.com/abetlen/llama-cpp-python.git",
-  "langchain",
-  "markdown",
-  "mkl",
-  "sentence-transformers",
-  "simsimd",
-  "spacy",
-  "transformers",
-  "torch",
-  "unstructured",
-]
+[tool.hatch.metadata]
+allow-direct-references = true
 
-[project.optional-dependencies]
-cpu = [
-  "faiss-cpu",
-]
+[tool.hatch.metadata.hooks.requirements_txt]
+files = ["requirements-core.txt"]
+
+[tool.hatch.metadata.hooks.requirements_txt.optional-dependencies]
+cpu = ["requirements-cpu.txt"]
+gpu = ["requirements-gpu.txt"]
 
 [project.urls]
 Documentation = "https://github.com/zeyus/RAGGA/blob/main/README.md"
@@ -58,7 +44,9 @@ dependencies = [
   "pytest",
 ]
 [tool.hatch.envs.default.env-vars]
-PIP_INDEX_URL = "https://download.pytorch.org/whl/nightly/cu121"
+# PIP_INDEX_URL = "https://download.pytorch.org/whl/nightly/cu121" # windows gpu
+PIP_INDEX_URL = "" # windows cpu, linux gpu, all mac
+# PIP_INDEX_URL = "https://download.pytorch.org/whl/cpu" # linux cpu
 PIP_PRE = "1"
 
 [tool.hatch.envs.default.scripts]
