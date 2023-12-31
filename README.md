@@ -62,7 +62,7 @@ Make sure you have CUDA 12.1 or higher installed.
 ### CPU (Windows, Linux, and macOS)
 
 ```console
-pip install 'ragga[cpu] @ https://github.com/zeyus/RAGGA/releases/download/v0.0.5/ragga-0.0.5-py3-none-any.whl'
+pip install 'ragga[cpu] @ https://github.com/zeyus/RAGGA/releases/download/v0.0.6/ragga-0.0.6-py3-none-any.whl'
 ```
 
 
