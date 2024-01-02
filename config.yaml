@@ -5,7 +5,7 @@ encoder:
   cache_dir: ".cache"
 
   model_kwargs: 
-    device: "cuda" # "cuda" for NVIDIA GPU or "cpu"
+    device: "cpu" # "cuda" for NVIDIA GPU or "cpu"
 
   encode_kwargs:
     normalize_embeddings: False
@@ -18,11 +18,11 @@ retriever:
   cache_dir: ".cache"
 
 generator:
-  llm_path: "models/phi-2.Q5_K_M.gguf"
+  llm_path: "models/phi-2-f16.gguf"
   context_length: 2048
   temperature: 0.8
   max_tokens: 256
-  gpu_layers: 50
+  gpu_layers: null # number of layers to offload to the GPU (if available), null for all layers
   model_kwargs: {}
   search_kwargs: {}
   similarity_threshold: 0.8

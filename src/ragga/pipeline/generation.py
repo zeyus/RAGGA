@@ -14,9 +14,14 @@ from langchain.llms.llamacpp import LlamaCpp
 from langchain.retrievers import ContextualCompressionRetriever
 from langchain.retrievers.document_compressors import DocumentCompressorPipeline, EmbeddingsFilter
 from langchain.schema.output_parser import StrOutputParser
-from langchain.schema.runnable import RunnableBranch, RunnableLambda, RunnableParallel
+from langchain.schema.runnable import RunnableBranch, RunnableLambda, RunnableParallel, RunnablePassthrough
 from langchain_core.callbacks.base import BaseCallbackHandler
+from langchain_core.language_models.base import LanguageModelInput
+from langchain_core.output_parsers.transform import BaseTransformOutputParser
+from langchain_core.prompt_values import ChatPromptValue
+from langchain_core.prompts import BasePromptTemplate
 from langchain_core.retrievers import BaseRetriever
+from langchain_core.runnables.base import Runnable
 
 from ragga.core.config import Config, Configurable
 from ragga.core.dispatch import PropertyWrapper
@@ -161,10 +166,12 @@ class Generator(Configurable):
             "what": "",
             "known": False,
         }
-        self._web_retriever = websearch
-        self._known_locations = set({"notes", "note", "writing", "writings"})
+        self._web_retriever: BaseRetriever | None = websearch
+        self._known_locations: set[str] = set({"notes", "note", "writing", "writings"})
         self._last_query: str | None = None
         self._question: str | None = None
+        self._last_context: str | None = None
+        self._last_output: str = ""
         self._web_search: bool = False
         self._model_response_handler = ModelResponseHandler()
         self._merge_default_kwargs(default_kwargs, "model_kwargs")
@@ -181,18 +188,19 @@ class Generator(Configurable):
             **self.config[self._config_key]["model_kwargs"],
         )
         # create prompt template
-        self._max_prompt_length = (
+        self._max_prompt_length: int = (
             self.config[self._config_key]["context_length"] - self.config[self._config_key]["max_tokens"] - 100 - 1
         )  # placeholder, will need to calculate this
-        self._prompt = prompt
-        self._template = prompt.get_prompt()
-        self._output_parser = StrOutputParser()
-        self._vectorstore = vectorstore
+        self._prompt: Prompt = prompt
+        self._template: BasePromptTemplate = prompt.get_prompt()
+        self._output_parser: BaseTransformOutputParser = StrOutputParser()
+        self._vectorstore: VectorDatabase = vectorstore
         self._embeddings_filter = EmbeddingsFilter(
             embeddings=self._vectorstore.encoder.embeddings,
             similarity_threshold=self.config[self._config_key]["similarity_threshold"])
         self._reorder = LongContextReorder()
         self._pipeline = DocumentCompressorPipeline(transformers=[self._embeddings_filter, self._reorder])
+        self._retriever: BaseRetriever
         if self.config[self._config_key]["compress"]:
             self._compression_retriever = ContextualCompressionRetriever(
                 base_compressor=self._pipeline, base_retriever=self._vectorstore.retriever
@@ -200,7 +208,7 @@ class Generator(Configurable):
             self._retriever = self._compression_retriever
         else:
             self._retriever = self._vectorstore.retriever
-        self._inputs = RunnableParallel(  # type: ignore
+        self._inputs: Runnable = RunnableParallel(  # type: ignore
             {
                 "user": lambda _x: self._prompt.user_name,
                 "question": itemgetter("question"),
@@ -214,9 +222,60 @@ class Generator(Configurable):
                 | self.condense_context,
             }  # type: ignore
         )
-        self._llm_with_stop = self._llm.bind(stop=[f"\n{self._prompt.user_name}:"])
-        # RunnablePassthrough(func=lambda x: print(x))
-        self._chain = self._inputs | self._template | self._llm_with_stop | self._output_parser
+        self._llm_with_stop: Runnable[LanguageModelInput, str] = self._llm.bind(stop=[f"\n{self._prompt.user_name}:"])
+        self._gen_chain: Runnable = (
+            self._inputs
+            | self._template
+            | RunnablePassthrough(func=self._store_context)
+            | self._llm_with_stop
+            | self._output_parser
+            | RunnablePassthrough(func=self._store_output)
+        )
+        self._continue_chain: Runnable = (
+            RunnableLambda(func=self._create_continuation)
+            | RunnablePassthrough(func=self._store_context)
+            | self._llm_with_stop
+            | self._output_parser
+            | RunnablePassthrough(func=self._store_output)
+        )
+
+        self._chain: Runnable = self._gen_chain
+
+    def _create_continuation(self, _x: Any) -> str:
+        """Create a prompt based on the last context and output"""
+        if self._last_context is None:
+            msg = "No context to continue"
+            raise ValueError(msg)
+        prompt = self._last_context + self._last_output
+        if len(prompt) > self._max_prompt_length:
+            prompt = prompt[-self._max_prompt_length:]
+
+        return prompt
+
+    def _can_continue(self) -> bool:
+        """Check if the context can be continued"""
+        if self._last_context is None:
+            return False
+        return True
+
+    def _store_context(self, ctx: ChatPromptValue | str) -> None:
+        """
+        Store the context
+        Args:
+            ctx (str): context
+        """
+        if isinstance(ctx, ChatPromptValue):
+            ctx = ctx.to_string()
+        self._last_context = ctx
+        self._last_output = ""
+
+    def _store_output(self, output: str) -> None:
+        """
+        Store the output
+        Args:
+            output (str): output
+        """
+        self._last_output += output
 
     def _use_web_retriever(self) -> bool:
         """Get the retriever dropin"""
@@ -259,6 +318,7 @@ class Generator(Configurable):
         Handle the command
         """
         logging.debug(f"Command: {kw[0]}")
+        self._chain = self._gen_chain
         if kw[0] in ["redo", "repeat", "again"] and self._last_query is not None:
             kw = extract_keywords(self._last_query, self._known_locations)
             self._question = self._last_query
@@ -272,6 +332,12 @@ class Generator(Configurable):
             self._question = "exit"
             msg = "Exiting..."
             raise KeyboardInterrupt(msg)
+        if kw[0] in ["continue", "more", "next"]:
+            if self._can_continue():
+                self._chain = self._continue_chain
+                return
+            msg = "No context to continue"
+            raise ValueError(msg)
 
         msg = "Unknown command"
         raise LookupError(msg)
