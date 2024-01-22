@@ -18,7 +18,11 @@ retriever:
   cache_dir: ".cache"
 
 generator:
-  llm_path: "models/phi-2-f16.gguf"
+  llm_path: "models/phi-2.Q8_0.gguf"
+  hf_tokenizer: "microsoft/phi-2" # huggingface model path for use in loading the tokenizer
+  # hf_tokenizer: "microsoft/phi-2" # phi-2
+  # hf_tokenizer: "KoboldAI/llama2-tokenizer" # llama-2-7b-chat
+  # hf_tokenizer: "TinyLlama/TinyLlama-1.1B-Chat-v1.0" # TinyLlama-1-chat
   context_length: 2048
   temperature: 0.8
   max_tokens: 256
@@ -27,6 +31,7 @@ generator:
   search_kwargs: {}
   similarity_threshold: 0.8
   compress: True
+  llama: False # true if model is a llama model
 
 dataset:
   path: "data"

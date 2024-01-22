@@ -1,27 +1,28 @@
 import logging
 from collections.abc import Callable, Iterator
-from datetime import UTC, datetime
 from operator import itemgetter
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
 
 from langchain.callbacks.manager import CallbackManager
 from langchain.docstore.document import Document
-from langchain.document_transformers import (
-    LongContextReorder,
-)
 from langchain.llms.llamacpp import LlamaCpp
 from langchain.retrievers import ContextualCompressionRetriever
 from langchain.retrievers.document_compressors import DocumentCompressorPipeline, EmbeddingsFilter
 from langchain.schema.output_parser import StrOutputParser
 from langchain.schema.runnable import RunnableBranch, RunnableLambda, RunnableParallel, RunnablePassthrough
+from langchain_community.document_transformers import (
+    LongContextReorder,
+)
 from langchain_core.callbacks.base import BaseCallbackHandler
-from langchain_core.language_models.base import LanguageModelInput
+from langchain_core.language_models.base import BaseLanguageModel, LanguageModelInput
 from langchain_core.output_parsers.transform import BaseTransformOutputParser
 from langchain_core.prompt_values import ChatPromptValue
 from langchain_core.prompts import BasePromptTemplate
 from langchain_core.retrievers import BaseRetriever
 from langchain_core.runnables.base import Runnable
+from langchain_experimental.chat_models import Llama2Chat
+from transformers import AutoTokenizer, PreTrainedTokenizerBase
 
 from ragga.core.config import Config, Configurable
 from ragga.core.dispatch import PropertyWrapper
@@ -122,6 +123,7 @@ class Generator(Configurable):
     _default_config = MappingProxyType(
         {
             "llm_path": "llm",
+            "hf_tokenizer": "",
             "context_length": 1024,
             "temperature": 0.9,
             "gpu_layers": 50,
@@ -129,6 +131,7 @@ class Generator(Configurable):
             "n_batch": 256,
             "compress": True,
             "similarity_threshold": 0.8,
+            "llama": False,
         }
     )
 
@@ -138,7 +141,7 @@ class Generator(Configurable):
         self, conf: Config,
         prompt: Prompt,
         vectorstore: VectorDatabase,
-        websearch: BaseRetriever | None = None
+        websearch: BaseRetriever | None = None,
     ) -> None:
         super().__init__(conf)
 
@@ -177,7 +180,7 @@ class Generator(Configurable):
         self._merge_default_kwargs(default_kwargs, "model_kwargs")
         self._merge_default_kwargs(search_kwargs, "search_kwargs")
         # load Llama from local file
-        self._llm = LlamaCpp(
+        self._llm: BaseLanguageModel = LlamaCpp(
             model_path=self.config[self._config_key]["llm_path"],
             n_ctx=self.config[self._config_key]["context_length"],
             temperature=self.config[self._config_key]["temperature"],
@@ -187,12 +190,22 @@ class Generator(Configurable):
             n_batch=self.config[self._config_key]["max_tokens"],
             **self.config[self._config_key]["model_kwargs"],
         )
+        self._llm_with_wrap:  Runnable[LanguageModelInput, str | BaseMessage]
+        self._tokenizer: PreTrainedTokenizerBase = AutoTokenizer.from_pretrained(
+            self.config[self._config_key]["hf_tokenizer"]
+        )
+        if self.config[self._config_key]["llama"]:
+            self._llm_with_wrap = Llama2Chat(
+                llm=self._llm,
+            )
+        else:
+            self._llm_with_wrap = self._llm
         # create prompt template
         self._max_prompt_length: int = (
             self.config[self._config_key]["context_length"] - self.config[self._config_key]["max_tokens"] - 100 - 1
         )  # placeholder, will need to calculate this
         self._prompt: Prompt = prompt
-        self._template: BasePromptTemplate = prompt.get_prompt()
+        self._template: BasePromptTemplate | None = None
         self._output_parser: BaseTransformOutputParser = StrOutputParser()
         self._vectorstore: VectorDatabase = vectorstore
         self._embeddings_filter = EmbeddingsFilter(
@@ -210,11 +223,10 @@ class Generator(Configurable):
             self._retriever = self._vectorstore.retriever
         self._inputs: Runnable = RunnableParallel(  # type: ignore
             {
-                "user": lambda _x: self._prompt.user_name,
                 "question": itemgetter("question"),
-                "date": lambda _x: datetime.now(UTC).strftime("%Y-%m-%d"),
                 "context": itemgetter("question")
-                | RunnableLambda(self._prepare_query)
+                | RunnableLambda(func=self._prepare_query)
+                | RunnablePassthrough(func=self._set_template)
                 | RunnableBranch(
                     (lambda _: self._use_web_retriever(), self._web_retriever),  # type: ignore
                     self._retriever
@@ -222,19 +234,19 @@ class Generator(Configurable):
                 | self.condense_context,
             }  # type: ignore
         )
-        self._llm_with_stop: Runnable[LanguageModelInput, str] = self._llm.bind(stop=[f"\n{self._prompt.user_name}:"])
+
         self._gen_chain: Runnable = (
             self._inputs
-            | self._template
+            | RunnableLambda(func=self._get_template)
             | RunnablePassthrough(func=self._store_context)
-            | self._llm_with_stop
+            | self._llm_with_wrap
             | self._output_parser
             | RunnablePassthrough(func=self._store_output)
         )
         self._continue_chain: Runnable = (
             RunnableLambda(func=self._create_continuation)
             | RunnablePassthrough(func=self._store_context)
-            | self._llm_with_stop
+            | self._llm_with_wrap
             | self._output_parser
             | RunnablePassthrough(func=self._store_output)
         )
@@ -247,10 +259,29 @@ class Generator(Configurable):
             msg = "No context to continue"
             raise ValueError(msg)
         prompt = self._last_context + self._last_output
-        if len(prompt) > self._max_prompt_length:
-            prompt = prompt[-self._max_prompt_length:]
+        logging.debug("Calculating continuation length...")
+        enc_prompt = self._tokenizer.encode(prompt)
+        if len(enc_prompt) > self._max_prompt_length:
+            logging.debug("Continuation too long, truncating start...")
+            prompt = self._tokenizer.decode(enc_prompt[-self._max_prompt_length:])
 
+        logging.debug("Continuation length calculated")
         return prompt
+
+    def _get_template(self, _x: Any) -> BasePromptTemplate:
+        """Get the template"""
+        if self._template is None:
+            msg = "No template set."
+            raise ValueError(msg)
+        return self._template
+
+    def _set_template(self, _x: str) -> None:
+        """Get the template"""
+        if self._use_web_retriever():
+            self._template = self._prompt.get_prompt(web=True)
+        if isinstance(self._last_context, str) and len(self._last_context.strip()) > 0:
+            self._template = self._prompt.get_prompt(docs=True)
+        self._template = self._prompt.get_prompt()
 
     def _can_continue(self) -> bool:
         """Check if the context can be continued"""
@@ -307,10 +338,21 @@ class Generator(Configurable):
         Returns:
             str: condensed context
         """
-        condensed = "\n".join([d.page_content for d in ctx])
-        if len(condensed) > self._max_prompt_length:
-            logging.warning(f"Context too long, truncating to {self._max_prompt_length} characters")
-            condensed = condensed[: self._max_prompt_length]
+        if self._template is None:
+            msg = "No template set."
+            raise ValueError(msg)
+        logging.debug("Calculating condensed context...")
+        template = self._template.format(question=self._question, context="")
+        template_tokens = len(self._tokenizer.encode(template))
+        available_tokens = self._max_prompt_length - template_tokens
+        condensed = "- " + "\n- ".join([d.page_content.strip() for d in ctx])
+        context = self._tokenizer.encode(condensed)
+        context_length = len(context)
+        if context_length > available_tokens:
+            logging.debug("Context too long, truncating...")
+            context = context[-available_tokens:]
+            condensed = self._tokenizer.decode(context)
+        logging.debug("Condensed context calculated")
         return condensed
 
     def _handle_command(self, kw: tuple[str | None, str | None, str | None, bool]) -> None:
@@ -375,10 +417,9 @@ class Generator(Configurable):
         """
         Get the answer from llm based on context and user's question
         Args:
-            context (str): most similar document retrieved
             question (str): user's question
         Returns:
-            Iterator[str]: llm answer
+            str: llm answer
         """
         self._question = question
         self._query_keywords()
@@ -388,7 +429,6 @@ class Generator(Configurable):
         """
         Get the answer from llm based on context and user's question
         Args:
-            context (str): most similar document retrieved
             question (str): user's question
         Returns:
             Iterator[str]: llm answer

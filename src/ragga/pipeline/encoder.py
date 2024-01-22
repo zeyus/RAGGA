@@ -1,7 +1,8 @@
 from types import MappingProxyType
 
-from langchain.embeddings import CacheBackedEmbeddings, HuggingFaceEmbeddings
+from langchain.embeddings import CacheBackedEmbeddings
 from langchain.storage import InMemoryByteStore, LocalFileStore
+from langchain_community.embeddings import HuggingFaceEmbeddings
 
 from ragga.core.config import Config, Configurable
 

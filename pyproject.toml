@@ -29,6 +29,7 @@ files = ["requirements-core.txt"]
 [tool.hatch.metadata.hooks.requirements_txt.optional-dependencies]
 cpu = ["requirements-cpu.txt"]
 gpu = ["requirements-gpu.txt"]
+eval = ["requirements-eval.txt"]
 
 [project.urls]
 Documentation = "https://github.com/zeyus/RAGGA/blob/main/README.md"

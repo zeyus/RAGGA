@@ -2,7 +2,7 @@ from pathlib import Path
 from types import MappingProxyType
 
 from langchain.docstore.document import Document
-from langchain.document_loaders import DirectoryLoader, UnstructuredMarkdownLoader
+from langchain_community.document_loaders import DirectoryLoader, UnstructuredMarkdownLoader
 
 from ragga.core.config import Config, Configurable
 

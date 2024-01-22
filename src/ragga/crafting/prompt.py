@@ -1,8 +1,14 @@
 from abc import ABC, abstractmethod
 from types import MappingProxyType
 
-from langchain.prompts import ChatMessagePromptTemplate, ChatPromptTemplate, PromptTemplate
-from langchain_core.messages import ChatMessage
+from langchain.prompts import (
+    AIMessagePromptTemplate,
+    ChatMessagePromptTemplate,
+    ChatPromptTemplate,
+    HumanMessagePromptTemplate,
+    PromptTemplate,
+    SystemMessagePromptTemplate,
+)
 from langchain_core.prompts import BasePromptTemplate
 
 from ragga.core.config import Config, Configurable
@@ -53,7 +59,7 @@ class Prompt(ABC, Configurable):
         return self.config[self._config_key]["AI_name"]
 
     @abstractmethod
-    def get_prompt(self) -> BasePromptTemplate:
+    def get_prompt(self, **kwargs) -> BasePromptTemplate:
         """Get the prompt"""
         pass
 
@@ -62,15 +68,13 @@ class ChatPrompt(Prompt):
 
     _default_config = MappingProxyType(
         {
-            "user_name": "User",
-            "AI_name": "PAI",
-            "instruct_user": "Instruct",
-            "instructions":
-                "You are \"<<AI_NAME>>\", {user}'s personal AI assistant. "
-                "Use the following to help answer {user}'s question: \"{question}\"",
-            "pre_context": "Relevant personal notes from the user:",
-            "post_context": "",
-            "user_query": "{question}",
+            # "instruct_user": "Instruct",
+            # "instructions":
+            #     "You are \"<<AI_NAME>>\", {user}'s personal AI assistant. "
+            #     "Use the following to help answer {user}'s question: \"{question}\"",
+            # "pre_context": "Relevant personal notes from the user:",
+            # "post_context": "",
+            # "user_query": "{question}",
         }
     )
 
@@ -80,7 +84,7 @@ class ChatPrompt(Prompt):
             if isinstance(v, str):
                 self.config[self._config_key][k] = v.replace("<<AI_NAME>>", self.config[self._config_key]["AI_name"])
 
-    def get_prompt(self) -> ChatPromptTemplate:
+    def get_prompt(self, **_kwargs) -> ChatPromptTemplate:
         return ChatPromptTemplate.from_messages([
             ChatMessagePromptTemplate.from_template(
                 role=self.config[self._config_key]["instruct_user"],
@@ -102,3 +106,187 @@ class ChatPrompt(Prompt):
         ])
 
 
+class Phi2QAPrompt(Prompt):
+    """Prompt wiht Phi-2 specific instruct tokens
+
+    Official format:
+        Instruct: {prompt}
+        Output:
+
+    "where the model generates the text after "Output:".
+
+    """
+    _default_config = MappingProxyType({})
+
+    def get_prompt(self, **kwargs) -> PromptTemplate:
+        if "docs" in kwargs and kwargs["docs"]:
+            return PromptTemplate.from_template(
+                "Instruct: Answer the question succinctly using the following document extracts:\n"
+                "[DATA]\n"
+                "{context}\n"
+                "[/DATA]\n"
+                "{question}\n"
+                "Output: "
+            )
+        elif "web" in kwargs and kwargs["web"]:
+            return PromptTemplate.from_template(
+                "Instruct: Answer the question succinctly using the following search results:\n"
+                "[DATA]\n"
+                "{context}\n"
+                "[/DATA]\n"
+                "{question}\n"
+                "Output: "
+            )
+
+        return PromptTemplate.from_template(
+            "Instruct: Answer the user succinctly.\n"
+            "{context}{question}\n"
+            "Output: "
+        )
+
+class Phi2ChatPrompt(Prompt):
+    """Prompt wiht Phi-2 specific instruct tokens
+
+    Official format:
+        Alice: I don't know why, I'm struggling to maintain focus while studying. Any suggestions?
+        Bob: Well, have you tried creating a study schedule and sticking to it?
+        Alice: Yes, I have, but it doesn't seem to help much.
+        Bob: Hmm, maybe you should try studying in a quiet environment, like the library.
+        Alice: ...
+
+    "where the model generates the text after the first Bob:".
+
+    """
+    _default_config = MappingProxyType({})
+
+    def get_prompt(self, **kwargs) -> ChatPromptTemplate:
+        if "docs" in kwargs and kwargs["docs"]:
+            return ChatPromptTemplate.from_messages([
+                HumanMessagePromptTemplate.from_template(
+                    "Answer the question succinctly using the following document extracts:\n"
+                    "[DATA]\n"
+                    "{context}\n"
+                    "[/DATA]\n"
+                    "{question}"
+                ),
+            ])
+        elif "web" in kwargs and kwargs["web"]:
+            return ChatPromptTemplate.from_messages([
+                HumanMessagePromptTemplate.from_template(
+                    "Answer the question succinctly using the following search results:\n"
+                    "[DATA]\n"
+                    "{context}\n"
+                    "[/DATA]\n"
+                    "{question}"
+                ),
+            ])
+
+        return ChatPromptTemplate.from_messages([
+            HumanMessagePromptTemplate.from_template(
+                "Answer the user succinctly.\n"
+                "{context}{question}"
+            ),
+        ])
+
+
+class TinyLlamaChatPrompt(Prompt):
+    """Prompt wiht Tiny Llama specific instruct tokens
+
+    Official format:
+        <|system|>
+        {system_message}</s>
+        <|user|>
+        {prompt}</s>
+        <|assistant|>
+    """
+    _default_config = MappingProxyType({})
+    def get_prompt(self, **kwargs) -> PromptTemplate:
+        if "docs" in kwargs and kwargs["docs"]:
+            return PromptTemplate.from_template(
+                "<|system|>\n"
+                "You are a friendly and helpful AI assistant. "
+                "Answer the user succinctly using the following document extracts:\n"
+                "[DATA]\n"
+                "{context}\n"
+                "[/DATA]</s>\n"
+                "<|user|>\n"
+                "{question}</s>\n"
+                "<|assistant|>"
+            )
+        elif "web" in kwargs and kwargs["web"]:
+            return PromptTemplate.from_template(
+                "<|system|>\n"
+                "You are a friendly and helpful AI assistant. "
+                "Answer the user succinctly using the following search results:\n"
+                "[DATA]\n"
+                "{context}\n"
+                "[/DATA]</s>\n"
+                "<|user|>\n"
+                "{question}</s>\n"
+                "<|assistant|>"
+            )
+
+        return PromptTemplate.from_template(
+            "<|system|>\n"
+            "You are a friendly and helpful AI assistant. Answer the user succinctly.</s>\n"
+            "<|user|>\n"
+            "{context}{question}</s>\n"
+            "<|assistant|>"
+        )
+
+
+class Llama2ChatPrompt(Prompt):
+    """Prompt wiht Llama 2 specific instruct tokens
+
+    Official format:
+        <s>[INST] <<SYS>>
+        {{ system_prompt }}
+        <</SYS>>
+
+        {{ user_message }} [/INST]
+    """
+    _default_config = MappingProxyType({})
+
+    def get_prompt(self, **kwargs) -> ChatPromptTemplate:
+        """Get the prompt
+        Args:
+            docs: Whether to include the docs in the prompt.
+            web: Whether to include the web search in the prompt.
+        Returns:
+            Constructed prompt. Accepts a "context" variable if docs or web is True.
+        """
+        if "docs" in kwargs and kwargs["docs"]:
+            return ChatPromptTemplate.from_messages([
+                SystemMessagePromptTemplate.from_template(
+                    "You are a friendly and helpful AI assistant. "
+                    "Answer the user succinctly using the following documents:\n"
+                    "[DATA]\n"
+                    "{context}\n"
+                    "[/DATA]"
+                ),
+                HumanMessagePromptTemplate.from_template(
+                    "{question}"
+                ),
+            ])
+        elif "web" in kwargs and kwargs["web"]:
+            return ChatPromptTemplate.from_messages([
+                SystemMessagePromptTemplate.from_template(
+                    "You are a friendly and helpful AI assistant. "
+                    "Answer the user succinctly using the following search results:\n"
+                    "[DATA]\n"
+                    "{context}\n"
+                    "[/DATA]"
+                ),
+                HumanMessagePromptTemplate.from_template(
+                    "{context}{question}"
+                ),
+            ])
+
+        return ChatPromptTemplate.from_messages([
+            SystemMessagePromptTemplate.from_template(
+                "You are a friendly and helpful AI assistant. Answer the user succinctly.\n"
+            ),
+            HumanMessagePromptTemplate.from_template(
+                "{context}{question}"
+            ),
+        ])

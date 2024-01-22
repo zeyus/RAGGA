@@ -81,12 +81,14 @@ class Configurable:
                     self.config[self._config_key][config_key][key] = value
 
     @t.overload
-    def add_config(self, config: dict) -> None: ...
-    """Set the config dictionary for the object"""
+    def add_config(self, config: dict) -> None:
+        """Set the config dictionary for the object"""
+        ...
 
     @t.overload
-    def add_config(self, config: str, value: str | int | float | bool | dict) -> None: ...
-    """Set a config key to the specified value for the object"""
+    def add_config(self, config: str, value: str | int | float | bool | dict) -> None:
+        """Set a config key to the specified value for the object"""
+        ...
 
     def add_config(self, config: dict | str, value: str | int | float | bool | dict | None = None) -> None:
         """Add a config to the object"""
