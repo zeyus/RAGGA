@@ -12,7 +12,7 @@ encoder:
 
 retriever:
   splitting:
-    chunk_size: 256
+    chunk_size: 512
     chunk_overlap: 16
   num_docs: 8
   cache_dir: ".cache"
@@ -26,12 +26,13 @@ generator:
   context_length: 2048
   temperature: 0.8
   max_tokens: 256
-  gpu_layers: null # number of layers to offload to the GPU (if available), null for all layers
+  gpu_layers: 0 # number of layers to offload to the GPU (if available), null for all layers
   model_kwargs: {}
   search_kwargs: {}
-  similarity_threshold: 0.8
-  compress: True
+  similarity_threshold: 0.75
+  compress: False # Not un use. Eventually the context can be compressed to remove redundant information
   llama: False # true if model is a llama model
+  autoflush: True # automatically clear the model stdout and stderr buffers, False to manually control flushing
 
 dataset:
   path: "data"
@@ -46,9 +47,9 @@ dataset:
       chunking_strategy: "by_title" # "by_title" or null (no chunking)
 prompt:
   user_name: "User"
-  AI_name: "PAI"
+  AI_name: "Assistant"
   instruct_user: "Instruct" # usually "System", or "Instruct"
-  instructions: "You are \"<<AI_NAME>>\", {user}'s personal AI assistant. Use the following to help answer {user}'s question: \"{question}\""
-  pre_context: "Relevant personal notes from {user}:"
+  instructions: "You are a friendly, helpful AI assistant. Succinctly and truthfully answer the user's question "
+  pre_context: "using the following documents"
   post_context: ""
-  user_query: "{question}\n\n<<AI_NAME>>:"
+  user_query: "{question}"

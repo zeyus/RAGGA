@@ -1,6 +1,9 @@
 import logging
+import signal
 import sys
 from pathlib import Path
+
+import pandas as pd
 
 sys.path.append(str(Path(__file__).parent / "src"))
 from ragga import (  # noqa: E402
@@ -13,54 +16,110 @@ from ragga import (  # noqa: E402
 )
 from ragga.crafting.prompt import Llama2ChatPrompt, Phi2ChatPrompt, Phi2QAPrompt, TinyLlamaChatPrompt  # noqa: E402
 
+REGISTERED_EXIT_CALLBACKS: list = []
+
+def signal_handler(_, __) -> None:
+    logging.info("Exiting...")
+    for callback in REGISTERED_EXIT_CALLBACKS:
+        callback()
+    sys.exit(0)
+
+signal.signal(signal.SIGINT, signal_handler)
 
 def output_model_response_stream(model_response: str) -> None:
     sys.stdout.write(model_response)
     sys.stdout.flush()
 
+
+NUM_GENERATIONS = 3
+
 models: dict[str, dict] = {
     "phi-2": {
-        "path": "./models/phi-2.Q8_0.gguf",
         "quant_bits": 8,
-        "context_length": 2048,
         "prompt": Phi2QAPrompt,
+        "config_override": {
+            "generator": {
+                "llm_path": "./models/phi-2.Q8_0.gguf",
+                # "hf_tokenizer": "microsoft/phi-2",
+                "llama": False,
+                "context_length": 2048,
+                "autoflush": False,
+            }
+        }
     },
     "phi-2-chat": {
-        "path": "./models/phi-2.Q8_0.gguf",
         "quant_bits": 8,
-        "context_length": 2048,
         "prompt": Phi2ChatPrompt,
+        "config_override": {
+            "generator": {
+                "llm_path": "./models/phi-2.Q8_0.gguf",
+                # "hf_tokenizer": "microsoft/phi-2",
+                "llama": False,
+                "context_length": 2048,
+                "autoflush": False,
+            }
+        }
     },
     "llama2": {
-        "path": "./models/llama-2-7b.Q5_K_M.gguf",
         "quant_bits": 5,
-        "context_length": 4096,
         "prompt": Llama2ChatPrompt,
+        "config_override": {
+            "generator": {
+                "llm_path": "./models/llama-2-7b-chat.Q5_K_M.gguf",
+                # "hf_tokenizer": "KoboldAI/llama2-tokenizer",
+                "llama": True,
+                "context_length": 2048, # supports 4096 but less is faster and consistent with others
+                "autoflush": False,
+            }
+        }
     },
     "tinyllama": {
-        "path": "./models/tinyllama-1.1b-intermediate-step-1431k-3t.Q8_0.gguf",
         "quant_bits": 8,
-        "context_length": 2048,
         "prompt": TinyLlamaChatPrompt,
+        "config_override": {
+            "generator": {
+                "llm_path": "./models/tinyllama-1.1b-chat-v1.0.Q8_0.gguf",
+                # "hf_tokenizer": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+                "llama": False,  # Otherwise it will use the default llama prompt, which is slightly different
+                "context_length": 2048,
+                "autoflush": False,
+            }
+        }
     },
 }
 
 datasets: dict[str, dict] = {
     "CLE_Course": {
-        "path": "../ObsidianVaults/CLE_Course",
         "source": "https://github.com/MVS-99/CLE_Course",
+        "config_override": {
+            "dataset": {
+                "path": "../ObsidianVaults/CLE_Course",
+            }
+        }
     },
     "Cybersecurity-Notes": {
-        "path": "../ObsidianVaults/Cybersecurity-Notes",
         "source": "https://github.com/Twigonometry/Cybersecurity-Notes",
+        "config_override": {
+            "dataset": {
+                "path": "../ObsidianVaults/Cybersecurity-Notes",
+            }
+        }
     },
     "FDA-Notes": {
-        "path": "../ObsidianVaults/FDA-Notes",
         "source": "https://github.com/Vuenc/FDA-Notes",
+        "config_override": {
+            "dataset": {
+                "path": "../ObsidianVaults/FDA-Notes",
+            }
+        }
     },
     "MathWiki": {
-        "path": "../ObsidianVaults/MathWiki",
         "source": "https://github.com/zhaoshenzhai/MathWiki",
+        "config_override": {
+            "dataset": {
+                "path": "../ObsidianVaults/MathWiki",
+            }
+        }
     },
 }
 
@@ -129,31 +188,122 @@ eval_qa: dict[str, list[tuple[str, str]]] = {
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
+    logging.debug("loading config...")
     conf = Config(config_path=Path(__file__).parent / "_config.yaml")
+    report: pd.DataFrame = pd.DataFrame(columns=[
+        "model",
+        "dataset",
+        "model_config",
+        "command_kw",
+        "documents",
+        "full_context",
+        "question",
+        "reference_answer",
+        "response",
+        "stdout",
+        "stderr"
+    ])
 
-    encoder = Encoder(conf)
-    faiss_db = VectorDatabase(conf, encoder)
-    # prompt = TinyLlamaChatPrompt(conf)
-    # if not faiss_db.loaded_from_disk:
-    #     dataset = MarkdownDataset(conf)
-    #     faiss_db.documents = dataset.documents
-    # # Websearch is optional
-    # generator = Generator(conf, prompt, faiss_db, websearch=WebSearchRetriever)
-    # generator.subscribe(output_model_response_stream)
-    # QUERY = "What have I written about sonification?"
-    # logging.info(f"Query: {QUERY}")
-    # response = generator.get_answer(QUERY)
-    # logging.debug(response)
-    # # /again
-    # # /more or /continue
-    # while True:
-    #     try:
-    #         query = input("Enter query: ")
-    #         logging.info(f"Query: {query}")
-    #         generator.get_answer(query)
-    #     except KeyboardInterrupt:
-    #         logging.info("Exiting...")
-    #         break
+    def save_report() -> None:
+        report.to_csv("report.csv", index=False)
+
+    REGISTERED_EXIT_CALLBACKS.append(save_report)
+
+    try:
+        for dataset_name, dataset_conf in datasets.items():
+            logging.debug(f"Loading dataset: {dataset_name}")
+            # update dataset config
+            conf.merge(dataset_conf["config_override"])
+            # set encoder cache_dir to dataset name, this is global across all models for this dataset
+            conf["encoder"]["cache_dir"] = f".cache/{dataset_name}"
+            # same for FAISS db cache
+            conf["retriever"]["cache_dir"] = f".cache/faiss_{dataset_name}"
+
+
+            logging.debug("loading dataset, this will take a while the first time...")
+            dataset = MarkdownDataset(conf)
+            for model_name, model_conf in models.items():
+                logging.debug(f"Loading model: {model_name}")
+                if "config_override" in model_conf:
+                    conf.merge(model_conf["config_override"])
+                prompt = model_conf["prompt"](conf)
+                logging.debug("loading encoder...")
+                encoder = Encoder(conf)
+                logging.debug("loading faiss db...")
+                faiss_db = VectorDatabase(conf, encoder)
+                if not faiss_db.loaded_from_disk:
+                    faiss_db.documents = dataset.documents
+                generator = Generator(conf, prompt, faiss_db, websearch=WebSearchRetriever)
+                generator.subscribe(output_model_response_stream)
+                # clear llama model info
+                stdout, stderr = generator.flush_stdout_stderr()
+                logging.debug(f"stdout: {stdout}")
+                logging.debug(f"stderr: {stderr}")
+                for question, answer in eval_qa["general"]:
+                    logging.debug(f"Question: {question}")
+                    for i in range(NUM_GENERATIONS):
+                        logging.debug(f"Generation {i} of {NUM_GENERATIONS}")
+                        response = generator.get_answer(question)
+                        stdout, stderr = generator.flush_stdout_stderr()
+                        report = pd.concat(
+                            [
+                                pd.DataFrame(
+                                    [[
+                                        model_name,
+                                        dataset_name,
+                                        model_conf,
+                                        generator.last_keywords,
+                                        generator.last_docs,
+                                        generator.last_context,
+                                        question,
+                                        answer,
+                                        response,
+                                        stdout,
+                                        stderr
+                                    ]],
+                                    columns=report.columns
+                                ),
+                                report
+                            ],
+                            ignore_index=True
+                        ) # type: ignore
+                if dataset_name not in eval_qa:
+                    continue
+                for question, answer in eval_qa[dataset_name]:
+                    logging.debug(f"Question: {question}")
+                    for i in range(NUM_GENERATIONS):
+                        logging.debug(f"Generation {i} of {NUM_GENERATIONS}")
+                        response = generator.get_answer(question)
+                        stdout, stderr = generator.flush_stdout_stderr()
+                        report = pd.concat(
+                            [
+                                pd.DataFrame(
+                                    [[
+                                        model_name,
+                                        dataset_name,
+                                        model_conf,
+                                        generator.last_keywords,
+                                        generator.last_docs,
+                                        generator.last_context,
+                                        question,
+                                        answer,
+                                        response,
+                                        stdout,
+                                        stderr
+                                    ]],
+                                    columns=report.columns
+                                ),
+                                report
+                            ],
+                            ignore_index=True
+                        )  # type: ignore
+    except Exception as e:
+        logging.exception(e)
+        save_report()
+        raise e
+
+    save_report()
+    logging.info("Done!")
 
 
 

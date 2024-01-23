@@ -1,5 +1,6 @@
 import logging
 from collections.abc import Callable, Iterator
+from io import StringIO
 from operator import itemgetter
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
@@ -7,7 +8,8 @@ from typing import TYPE_CHECKING, Any
 from langchain.callbacks.manager import CallbackManager
 from langchain.docstore.document import Document
 from langchain.llms.llamacpp import LlamaCpp
-from langchain.retrievers import ContextualCompressionRetriever
+
+# from langchain.retrievers import ContextualCompressionRetriever
 from langchain.retrievers.document_compressors import DocumentCompressorPipeline, EmbeddingsFilter
 from langchain.schema.output_parser import StrOutputParser
 from langchain.schema.runnable import RunnableBranch, RunnableLambda, RunnableParallel, RunnablePassthrough
@@ -15,17 +17,18 @@ from langchain_community.document_transformers import (
     LongContextReorder,
 )
 from langchain_core.callbacks.base import BaseCallbackHandler
-from langchain_core.language_models.base import BaseLanguageModel, LanguageModelInput
+from langchain_core.language_models.base import LanguageModelInput
 from langchain_core.output_parsers.transform import BaseTransformOutputParser
 from langchain_core.prompt_values import ChatPromptValue
 from langchain_core.prompts import BasePromptTemplate
 from langchain_core.retrievers import BaseRetriever
 from langchain_core.runnables.base import Runnable
 from langchain_experimental.chat_models import Llama2Chat
-from transformers import AutoTokenizer, PreTrainedTokenizerBase
 
+# from transformers import AutoTokenizer, PreTrainedTokenizerBase  # type: ignore
 from ragga.core.config import Config, Configurable
 from ragga.core.dispatch import PropertyWrapper
+from ragga.core.io import store_stdout_stderr
 from ragga.crafting.commands import extract_keywords
 from ragga.crafting.prompt import Prompt
 from ragga.pipeline.documents import VectorDatabase
@@ -132,6 +135,7 @@ class Generator(Configurable):
             "compress": True,
             "similarity_threshold": 0.8,
             "llama": False,
+            "autoflush": True,
         }
     )
 
@@ -169,6 +173,8 @@ class Generator(Configurable):
             "what": "",
             "known": False,
         }
+        self._model_stdout: StringIO = StringIO()
+        self._model_stderr: StringIO = StringIO()
         self._web_retriever: BaseRetriever | None = websearch
         self._known_locations: set[str] = set({"notes", "note", "writing", "writings"})
         self._last_query: str | None = None
@@ -179,21 +185,28 @@ class Generator(Configurable):
         self._model_response_handler = ModelResponseHandler()
         self._merge_default_kwargs(default_kwargs, "model_kwargs")
         self._merge_default_kwargs(search_kwargs, "search_kwargs")
-        # load Llama from local file
-        self._llm: BaseLanguageModel = LlamaCpp(
-            model_path=self.config[self._config_key]["llm_path"],
-            n_ctx=self.config[self._config_key]["context_length"],
-            temperature=self.config[self._config_key]["temperature"],
-            n_gpu_layers=self.config[self._config_key]["gpu_layers"],
-            max_tokens=self.config[self._config_key]["max_tokens"],
-            callbacks=CallbackManager([self._model_response_handler]),
-            n_batch=self.config[self._config_key]["max_tokens"],
-            **self.config[self._config_key]["model_kwargs"],
-        )
+        self._autoflush: bool = True if self.config[self._config_key]["autoflush"] else False
+        if not self._autoflush:
+            logging.debug(
+                "Autoflush disabled, please remember to flush stdout and stderr "
+                "buffers maunally with {__class__}.flush_stdout_stderr()"
+            )
+        with store_stdout_stderr(self._model_stdout, self._model_stderr, self._autoflush):
+            # load Llama from local file
+            self._llm: LlamaCpp = LlamaCpp(
+                model_path=self.config[self._config_key]["llm_path"],
+                n_ctx=self.config[self._config_key]["context_length"],
+                temperature=self.config[self._config_key]["temperature"],
+                n_gpu_layers=self.config[self._config_key]["gpu_layers"],
+                max_tokens=self.config[self._config_key]["max_tokens"],
+                callbacks=CallbackManager([self._model_response_handler]),
+                n_batch=self.config[self._config_key]["max_tokens"],
+                **self.config[self._config_key]["model_kwargs"],
+            )
         self._llm_with_wrap:  Runnable[LanguageModelInput, str | BaseMessage]
-        self._tokenizer: PreTrainedTokenizerBase = AutoTokenizer.from_pretrained(
-            self.config[self._config_key]["hf_tokenizer"]
-        )
+        # self._tokenizer: PreTrainedTokenizerBase = AutoTokenizer.from_pretrained(
+        #     self.config[self._config_key]["hf_tokenizer"]
+        # )
         if self.config[self._config_key]["llama"]:
             self._llm_with_wrap = Llama2Chat(
                 llm=self._llm,
@@ -214,13 +227,15 @@ class Generator(Configurable):
         self._reorder = LongContextReorder()
         self._pipeline = DocumentCompressorPipeline(transformers=[self._embeddings_filter, self._reorder])
         self._retriever: BaseRetriever
-        if self.config[self._config_key]["compress"]:
-            self._compression_retriever = ContextualCompressionRetriever(
-                base_compressor=self._pipeline, base_retriever=self._vectorstore.retriever
-            )
-            self._retriever = self._compression_retriever
-        else:
-            self._retriever = self._vectorstore.retriever
+        self._docs: list[Document] | None = None
+        # This could be instead replaced with a different compression method (without LLM).
+        # if self.config[self._config_key]["compress"]:
+        #     self._compression_retriever = ContextualCompressionRetriever(
+        #         base_compressor=self._pipeline, base_retriever=self._vectorstore.retriever
+        #     )
+        #     self._retriever = self._compression_retriever
+        # else:
+        self._retriever = self._vectorstore.retriever
         self._inputs: Runnable = RunnableParallel(  # type: ignore
             {
                 "question": itemgetter("question"),
@@ -228,7 +243,7 @@ class Generator(Configurable):
                 | RunnableLambda(func=self._prepare_query)
                 | RunnablePassthrough(func=self._set_template)
                 | RunnableBranch(
-                    (lambda _: self._use_web_retriever(), self._web_retriever),  # type: ignore
+                    (lambda x: self._use_web_retriever(x), self._web_retriever),  # type: ignore
                     self._retriever
                 )
                 | self.condense_context,
@@ -258,13 +273,13 @@ class Generator(Configurable):
         if self._last_context is None:
             msg = "No context to continue"
             raise ValueError(msg)
-        prompt = self._last_context + self._last_output
+        prompt: str = self._last_context + self._last_output
         logging.debug("Calculating continuation length...")
-        enc_prompt = self._tokenizer.encode(prompt)
+        enc_prompt: list[int] = self._llm.client.tokenize(prompt.encode())
         if len(enc_prompt) > self._max_prompt_length:
             logging.debug("Continuation too long, truncating start...")
-            prompt = self._tokenizer.decode(enc_prompt[-self._max_prompt_length:])
-
+            bprompt: bytes = self._llm.client.detokenize(enc_prompt[-self._max_prompt_length:])
+            prompt = bprompt.decode()
         logging.debug("Continuation length calculated")
         return prompt
 
@@ -308,7 +323,7 @@ class Generator(Configurable):
         """
         self._last_output += output
 
-    def _use_web_retriever(self) -> bool:
+    def _use_web_retriever(self, _: Any = None) -> bool:
         """Get the retriever dropin"""
         if self._web_search and self._web_retriever is not None:
             logging.info("Using web retriever")
@@ -330,6 +345,14 @@ class Generator(Configurable):
         logging.info(f"Using full query {x}")
         return x
 
+    def flush_stdout_stderr(self) -> tuple[str, str]:
+        """Flush stdout and stderr"""
+        stdout = self._model_stdout.getvalue()
+        stderr = self._model_stderr.getvalue()
+        self._model_stdout.truncate(0)
+        self._model_stderr.truncate(0)
+        return stdout, stderr
+
     def condense_context(self, ctx: list[Document]) -> str:
         """
         Condense the context into a single string
@@ -341,19 +364,26 @@ class Generator(Configurable):
         if self._template is None:
             msg = "No template set."
             raise ValueError(msg)
+        self._docs = ctx
         logging.debug("Calculating condensed context...")
-        template = self._template.format(question=self._question, context="")
-        template_tokens = len(self._tokenizer.encode(template))
-        available_tokens = self._max_prompt_length - template_tokens
-        condensed = "- " + "\n- ".join([d.page_content.strip() for d in ctx])
-        context = self._tokenizer.encode(condensed)
-        context_length = len(context)
+        template: str = self._template.format(question=self._question, context="")
+        template_tokens: int = self._llm.get_num_tokens(template)
+        available_tokens: int = self._max_prompt_length - template_tokens
+        context: str = "- " + "\n- ".join([d.page_content.strip() for d in ctx])
+        context_tok: list[int] = self._llm.client.tokenize(context.encode())
+        context_length = len(context_tok)
         if context_length > available_tokens:
             logging.debug("Context too long, truncating...")
-            context = context[-available_tokens:]
-            condensed = self._tokenizer.decode(context)
+            context_tok = context_tok[-available_tokens:]
+            bcontext: bytes = self._llm.client.detokenize(context_tok)
+            context = bcontext.decode()
         logging.debug("Condensed context calculated")
-        return condensed
+        return context
+
+    @property
+    def last_docs(self) -> list[Document] | None:
+        """Get the last docs"""
+        return self._docs
 
     def _handle_command(self, kw: tuple[str | None, str | None, str | None, bool]) -> None:
         """
@@ -412,6 +442,20 @@ class Generator(Configurable):
             self._set_keywords(kw)
             self._last_query = self._question
 
+    @property
+    def last_context(self) -> str | None:
+        """Get the last context"""
+        return self._last_context
+
+    @property
+    def last_keywords(self) -> dict[str, str | bool | None]:
+        """Get the last keywords"""
+        return self._keywords
+
+    @property
+    def last_query(self) -> str | None:
+        """Get the last query"""
+        return self._last_query
 
     def get_answer(self, question: str) -> str:
         """
@@ -423,7 +467,8 @@ class Generator(Configurable):
         """
         self._question = question
         self._query_keywords()
-        return self._chain.invoke({"question": self._question})
+        with store_stdout_stderr(self._model_stdout, self._model_stderr, self._autoflush):
+            return self._chain.invoke({"question": self._question})
 
     def get_answer_stream(self, question: str) -> Iterator[str]:
         """
@@ -435,7 +480,8 @@ class Generator(Configurable):
         """
         self._question = question
         self._query_keywords()
-        return self._chain.stream({"question": self._question})
+        with store_stdout_stderr(self._model_stdout, self._model_stderr, self._autoflush):
+            return self._chain.stream({"question": self._question})
 
     def response_handler(self) -> ModelResponseHandler:
         """Get the response handler"""

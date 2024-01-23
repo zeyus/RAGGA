@@ -69,7 +69,9 @@ python = ["3.11"]
 detached = true
 dependencies = [
   "black>=23.1.0",
+  "data-science-types>=0.2.23",
   "mypy>=1.0.0",
+  "pandas-stubs>=2.1.4",
   "ruff>=0.0.243",
   "types-PyYaml",
   "types-requests",

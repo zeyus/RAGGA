@@ -1,1 +1,2 @@
 langchain-benchmarks==0.0.10
+pandas==2.2.0

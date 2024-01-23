@@ -2,7 +2,6 @@ from abc import ABC, abstractmethod
 from types import MappingProxyType
 
 from langchain.prompts import (
-    AIMessagePromptTemplate,
     ChatMessagePromptTemplate,
     ChatPromptTemplate,
     HumanMessagePromptTemplate,

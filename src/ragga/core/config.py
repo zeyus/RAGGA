@@ -4,6 +4,7 @@ from pathlib import Path
 from types import MappingProxyType
 
 import yaml
+from pydantic.v1.utils import deep_update
 
 
 def tuple_constructor(loader, node):
@@ -32,6 +33,9 @@ class Config:
         except FileNotFoundError as e:
             msg = f"Config file not found: {config_path}"
             raise FileNotFoundError(msg) from e
+
+    def merge(self, config: dict[str, t.Any]) -> None:
+        self.config = deep_update(self.config, config)
 
     def __getitem__(self, key: str) -> dict:
         return self.config[key]
