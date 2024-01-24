@@ -124,7 +124,7 @@ class store_stdout_stderr(object):  # noqa: N801, UP004
         self._os.dup2(self.stderr_tfile.fileno(), self.old_stderr_fd)
 
         # Redirect stdout and stderr to the temporary files
-        self._sys.stdout = TextIOWrapper(
+        self._sys.stdout = TextIOWrapper(  # type: ignore
             self._os.fdopen(
                 self.stdout_tfile.fileno(),
                 "wb",
@@ -133,7 +133,7 @@ class store_stdout_stderr(object):  # noqa: N801, UP004
             encoding="utf-8",
             write_through=True
         )
-        self._sys.stderr = TextIOWrapper(
+        self._sys.stderr = TextIOWrapper(  # type: ignore
             self._os.fdopen(
                 self.stderr_tfile.fileno(),
                 "wb",
@@ -154,8 +154,8 @@ class store_stdout_stderr(object):  # noqa: N801, UP004
         self._os.dup2(self.old_stdout_dup, self.old_stdout_fd)
         self._os.dup2(self.old_stderr_dup, self.old_stderr_fd)
         # return stdout and stderr to their original objects (TextIOWrapper)
-        self._sys.stdout = self.old_stdout
-        self._sys.stderr = self.old_stderr
+        self._sys.stdout = self.old_stdout  # type: ignore
+        self._sys.stderr = self.old_stderr  # type: ignore
         # Flush the temporary files
         self.stderr_tfile.flush()
         self.stdout_tfile.flush()
