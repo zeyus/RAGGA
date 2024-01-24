@@ -1,3 +1,4 @@
+import datetime
 import logging
 import signal
 import sys
@@ -205,12 +206,14 @@ if __name__ == "__main__":
     ])
 
     def save_report() -> None:
-        report.to_csv("report.csv", index=False)
+        ymd = datetime.datetime.now(tz=datetime.UTC).strftime("%Y-%m-%d_%H%M%S")
+        report.to_csv(f"./reports/report_{ymd}.csv", index=False)
 
     REGISTERED_EXIT_CALLBACKS.append(save_report)
 
     try:
         for dataset_name, dataset_conf in datasets.items():
+            log_prefix = f"[DS:{dataset_name}] "
             logging.debug(f"Loading dataset: {dataset_name}")
             # update dataset config
             conf.merge(dataset_conf["config_override"])
@@ -220,29 +223,30 @@ if __name__ == "__main__":
             conf["retriever"]["cache_dir"] = f".cache/faiss_{dataset_name}"
 
 
-            logging.debug("loading dataset, this will take a while the first time...")
+            logging.debug(f"{log_prefix}loading dataset, this will take a while the first time...")
             dataset = MarkdownDataset(conf)
             for model_name, model_conf in models.items():
+                log_prefix = f"[DS:{dataset_name}][M:{model_name}] "
                 logging.debug(f"Loading model: {model_name}")
                 if "config_override" in model_conf:
                     conf.merge(model_conf["config_override"])
                 prompt = model_conf["prompt"](conf)
-                logging.debug("loading encoder...")
+                logging.debug(f"{log_prefix}loading encoder...")
                 encoder = Encoder(conf)
-                logging.debug("loading faiss db...")
+                logging.debug(f"{log_prefix}loading faiss db...")
                 faiss_db = VectorDatabase(conf, encoder)
                 if not faiss_db.loaded_from_disk:
                     faiss_db.documents = dataset.documents
+                logging.debug(f"{log_prefix}loading generator and model...")
                 generator = Generator(conf, prompt, faiss_db, websearch=WebSearchRetriever)
-                generator.subscribe(output_model_response_stream)
+                # generator.subscribe(output_model_response_stream)
                 # clear llama model info
                 stdout, stderr = generator.flush_stdout_stderr()
-                logging.debug(f"stdout: {stdout}")
-                logging.debug(f"stderr: {stderr}")
                 for question, answer in eval_qa["general"]:
+                    log_prefix = f"[DS:{dataset_name}][M:{model_name}][GQ:{question}] "
                     logging.debug(f"Question: {question}")
                     for i in range(NUM_GENERATIONS):
-                        logging.debug(f"Generation {i} of {NUM_GENERATIONS}")
+                        logging.debug(f"{log_prefix}Generation {i} of {NUM_GENERATIONS}")
                         response = generator.get_answer(question)
                         stdout, stderr = generator.flush_stdout_stderr()
                         report = pd.concat(
@@ -270,9 +274,10 @@ if __name__ == "__main__":
                 if dataset_name not in eval_qa:
                     continue
                 for question, answer in eval_qa[dataset_name]:
+                    log_prefix = f"[DS:{dataset_name}][M:{model_name}][SQ:{question}] "
                     logging.debug(f"Question: {question}")
                     for i in range(NUM_GENERATIONS):
-                        logging.debug(f"Generation {i} of {NUM_GENERATIONS}")
+                        logging.debug(f"{log_prefix}Generation {i+1} of {NUM_GENERATIONS}")
                         response = generator.get_answer(question)
                         stdout, stderr = generator.flush_stdout_stderr()
                         report = pd.concat(

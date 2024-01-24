@@ -189,7 +189,7 @@ class Generator(Configurable):
         if not self._autoflush:
             logging.debug(
                 "Autoflush disabled, please remember to flush stdout and stderr "
-                "buffers maunally with {__class__}.flush_stdout_stderr()"
+                f"buffers maunally with {self.__class__.__name__}.flush_stdout_stderr()"
             )
         with store_stdout_stderr(self._model_stdout, self._model_stderr, self._autoflush):
             # load Llama from local file

@@ -166,3 +166,5 @@ models/
 _config.yaml
 
 .test_cache/
+
+reports/
