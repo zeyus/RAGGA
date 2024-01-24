@@ -6,7 +6,6 @@ Thanks to:
 - https://stackoverflow.com/questions/17942874/stdout-redirection-with-ctypes
 
 """
-# type: ignore
 
 import ctypes
 import os
@@ -38,7 +37,6 @@ class store_stdout_stderr(object):  # noqa: N801, UP004
 
     Examples:
 
-    >>> from io import StringIO
     >>> with store_stdout_stderr() as (outbuff, errbuff):
     ...     print("Hello World!")
     >>> outbuff.getvalue()
@@ -57,9 +55,8 @@ class store_stdout_stderr(object):  # noqa: N801, UP004
     ''
     """
 
-    open = open  # noqa: A003
-    sys = sys
-    os = os
+    _sys = sys
+    _os = os
 
     def __init__(
             self,
@@ -87,8 +84,8 @@ class store_stdout_stderr(object):  # noqa: N801, UP004
 
     def _flush_stdout_stderr(self) -> None:
         """Flush python and C stdout and stderr buffers."""
-        self.sys.stdout.flush()
-        self.sys.stderr.flush()
+        self._sys.stdout.flush()
+        self._sys.stderr.flush()
         if not WIN:
             libc.fflush(c_stdout)
             libc.fflush(c_stderr)
@@ -100,35 +97,35 @@ class store_stdout_stderr(object):  # noqa: N801, UP004
         if self.disable:
             return self.outbuff, self.errbuff
         # If stdout/err do not have a fileno, we cannot redirect them
-        if not hasattr(self.sys.stdout, "fileno") or not hasattr(self.sys.stderr, "fileno"):
+        if not hasattr(self._sys.stdout, "fileno") or not hasattr(self._sys.stderr, "fileno"):
             self.disable = True
             return self.outbuff, self.errbuff
 
         # Save the original file descriptors
-        self.old_stdout_fd = self.sys.stdout.fileno()
-        self.old_stderr_fd = self.sys.stderr.fileno()
+        self.old_stdout_fd = self._sys.stdout.fileno()
+        self.old_stderr_fd = self._sys.stderr.fileno()
 
         # Duplicate the original file descriptors
-        self.old_stdout_dup = self.os.dup(self.old_stdout_fd)
-        self.old_stderr_dup = self.os.dup(self.old_stderr_fd)
+        self.old_stdout_dup = self._os.dup(self.old_stdout_fd)
+        self.old_stderr_dup = self._os.dup(self.old_stderr_fd)
 
         # Create temporary files to store stdout and stderr
         self.stdout_tfile = tempfile.TemporaryFile(mode="w+b")
         self.stderr_tfile = tempfile.TemporaryFile(mode="w+b")
 
         # Save the original stdout and stderr
-        self.old_stdout = self.sys.stdout
-        self.old_stderr = self.sys.stderr
+        self.old_stdout = self._sys.stdout
+        self.old_stderr = self._sys.stderr
 
         self._flush_stdout_stderr()
 
         # Redirect stdout and stderr file descriptors to the temporary files
-        self.os.dup2(self.stdout_tfile.fileno(), self.old_stdout_fd)
-        self.os.dup2(self.stderr_tfile.fileno(), self.old_stderr_fd)
+        self._os.dup2(self.stdout_tfile.fileno(), self.old_stdout_fd)
+        self._os.dup2(self.stderr_tfile.fileno(), self.old_stderr_fd)
 
         # Redirect stdout and stderr to the temporary files
-        self.sys.stdout = TextIOWrapper(
-            self.os.fdopen(
+        self._sys.stdout = TextIOWrapper(
+            self._os.fdopen(
                 self.stdout_tfile.fileno(),
                 "wb",
                 closefd=False
@@ -136,8 +133,8 @@ class store_stdout_stderr(object):  # noqa: N801, UP004
             encoding="utf-8",
             write_through=True
         )
-        self.sys.stderr = TextIOWrapper(
-            self.os.fdopen(
+        self._sys.stderr = TextIOWrapper(
+            self._os.fdopen(
                 self.stderr_tfile.fileno(),
                 "wb",
                 closefd=False
@@ -154,11 +151,11 @@ class store_stdout_stderr(object):  # noqa: N801, UP004
         # Restore stdout and stderr
         self._flush_stdout_stderr()
         # Redirect stdout and stderr file descriptors to the saved file descriptors
-        self.os.dup2(self.old_stdout_dup, self.old_stdout_fd)
-        self.os.dup2(self.old_stderr_dup, self.old_stderr_fd)
+        self._os.dup2(self.old_stdout_dup, self.old_stdout_fd)
+        self._os.dup2(self.old_stderr_dup, self.old_stderr_fd)
         # return stdout and stderr to their original objects (TextIOWrapper)
-        self.sys.stdout = self.old_stdout
-        self.sys.stderr = self.old_stderr
+        self._sys.stdout = self.old_stdout
+        self._sys.stderr = self.old_stderr
         # Flush the temporary files
         self.stderr_tfile.flush()
         self.stdout_tfile.flush()
@@ -169,8 +166,8 @@ class store_stdout_stderr(object):  # noqa: N801, UP004
         self.outbuff.write(self.stdout_tfile.read().decode())
         self.errbuff.write(self.stderr_tfile.read().decode())
         # Close the saved file descriptors
-        self.os.close(self.old_stdout_dup)
-        self.os.close(self.old_stderr_dup)
+        self._os.close(self.old_stdout_dup)
+        self._os.close(self.old_stderr_dup)
         # Close the temporary files
         self.stdout_tfile.close()
         self.stderr_tfile.close()
