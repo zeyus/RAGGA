@@ -1,0 +1,43 @@
+dataset,question,reference_answer,response_index,phi-2-chat_rank,phi-2-chat_score,phi-2_rank,phi-2_score,tinyllama_rank,tinyllama_score,llama2_rank,llama2_score
+MathWiki,What is the capital of France?,Paris,1,4,8,3,9,1,10,2,9
+FDA-Notes,What is 1 + 1?,2,1,3,0,1,5,2,5,4,0
+MathWiki,What is the definition of an Exact Sequence?,"Let $G_1,\dots,G_n$ be groups. A sequence $G_1\to G_2\to\cdots\to G_n$ of homomorphisms $\phi_i:G_i\to G_{i+1}$ is said to beexact if $\im\phi_i=\ker\phi_{i+1}$ for all $i$. A short exact sequence is an exact sequence $1\to A\overset{\phi}{\to}B\overset{\psi}{\to}C\to1$; that is, a sequence for which $\phi$ is injective, $\psi$ is surjective, and $\im\phi=\ker\psi$. A long exact sequence is an exact sequence that is not short.",0,4,0,3,3,2,8,1,8
+CLE_Course,What is 1 + 1?,2,0,4,0,1,10,3,0,2,0
+CLE_Course,Which bitwise operators are there?,"& (ampersand) -> Bitwise conjunction (AND), | (bar) -> Bitwise disjunction (OR), ~ (tilde) -> Bitwise negation (NOT), ^ (caret) -> Bitwise exclusive disjunction (XOR)",2,2,8,3,5,4,5,1,9
+Cybersecurity-Notes,What do most assessments include?,"enumeration, identifying running services & the purpose of the target, re-enumerating services, finding software and hardware versions, searching for exploits in found versions, collecting credentials, exploitation, enumeration (again), persistence, privilege escalation, enumeration (again), persistence (again)",2,2,6,3,7,4,4,1,8
+CLE_Course,What is the capital of France?,Paris,0,3,0,4,0,1,6,2,0
+Cybersecurity-Notes,What do most assessments include?,"enumeration, identifying running services & the purpose of the target, re-enumerating services, finding software and hardware versions, searching for exploits in found versions, collecting credentials, exploitation, enumeration (again), persistence, privilege escalation, enumeration (again), persistence (again)",1,2,7,4,0,3,6,1,9
+MathWiki,What is the definition of an Exact Sequence?,"Let $G_1,\dots,G_n$ be groups. A sequence $G_1\to G_2\to\cdots\to G_n$ of homomorphisms $\phi_i:G_i\to G_{i+1}$ is said to beexact if $\im\phi_i=\ker\phi_{i+1}$ for all $i$. A short exact sequence is an exact sequence $1\to A\overset{\phi}{\to}B\overset{\psi}{\to}C\to1$; that is, a sequence for which $\phi$ is injective, $\psi$ is surjective, and $\im\phi=\ker\psi$. A long exact sequence is an exact sequence that is not short.",1,3,6,4,3,1,2,2,7
+FDA-Notes,What is 1 + 1?,2,0,2,0,3,0,1,6,4,0
+Cybersecurity-Notes,What is 1 + 1?,2,2,2,0,1,0,4,0,3,0
+FDA-Notes,How can SVD be applied for Document Ranking?,"Represent documents as vectors that count word occurrences (say, the 25000 most important words in the English language). A collection of documents is then represented as a matrix. How to measure the intrinsic relevance of a document to the collection",0,3,4,4,0,2,7,1,8
+CLE_Course,What is 1 + 1?,2,1,2,6,1,7,3,0,4,0
+CLE_Course,What are the operators?,"Multiplication, Division, Addition, Subtraction, Unary Minus, Remainder, Prefix and Postfix, Shortcut, Logical, Bitwise, Bit Shifting, Size",0,1,8,4,0,3,5,2,5
+MathWiki,What is 1 + 1?,2,0,2,6,3,3,4,0,1,10
+MathWiki,What is 1 + 1?,2,1,4,0,3,8,1,10,2,10
+Cybersecurity-Notes,What is the capital of France?,Paris,2,3,8,2,6,1,10,4,0
+FDA-Notes,What is the capital of France?,Paris,1,4,0,1,8,3,0,2,4
+Cybersecurity-Notes,What is the capital of France?,Paris,1,1,5,2,3,4,0,3,0
+Cybersecurity-Notes,What is 1 + 1?,2,0,3,0,4,0,2,0,1,10
+FDA-Notes,How can SVD be applied for Document Ranking?,"Represent documents as vectors that count word occurrences (say, the 25000 most important words in the English language). A collection of documents is then represented as a matrix. How to measure the intrinsic relevance of a document to the collection",2,3,0,4,0,1,9,2,8
+CLE_Course,What is the capital of France?,Paris,1,2,4,3,2,1,7,4,0
+Cybersecurity-Notes,What is CVE-2020-12271?,"Pre-Authentication SQL Injection, can allow exfiltration of XG firewall-resident data, which can contain local user credentials",0,3,3,4,2,2,7,1,8
+CLE_Course,What is the capital of France?,Paris,2,2,0,4,0,1,6,3,0
+CLE_Course,Which bitwise operators are there?,"& (ampersand) -> Bitwise conjunction (AND), | (bar) -> Bitwise disjunction (OR), ~ (tilde) -> Bitwise negation (NOT), ^ (caret) -> Bitwise exclusive disjunction (XOR)",1,4,4,3,5,1,9,2,8
+Cybersecurity-Notes,What do most assessments include?,"enumeration, identifying running services & the purpose of the target, re-enumerating services, finding software and hardware versions, searching for exploits in found versions, collecting credentials, exploitation, enumeration (again), persistence, privilege escalation, enumeration (again), persistence (again)",0,3,0,4,0,1,9,2,8
+MathWiki,What is the capital of France?,Paris,0,4,0,3,0,1,10,2,10
+MathWiki,What is 1 + 1?,2,2,4,0,3,0,2,6,1,8
+FDA-Notes,How can SVD be applied for Document Ranking?,"Represent documents as vectors that count word occurrences (say, the 25000 most important words in the English language). A collection of documents is then represented as a matrix. How to measure the intrinsic relevance of a document to the collection",1,3,1,4,0,2,8,1,7
+Cybersecurity-Notes,What is CVE-2020-12271?,"Pre-Authentication SQL Injection, can allow exfiltration of XG firewall-resident data, which can contain local user credentials",2,2,7,4,3,3,6,1,8
+CLE_Course,What are the operators?,"Multiplication, Division, Addition, Subtraction, Unary Minus, Remainder, Prefix and Postfix, Shortcut, Logical, Bitwise, Bit Shifting, Size",1,3,5,4,0,2,6,1,9
+Cybersecurity-Notes,What is 1 + 1?,2,1,3,0,4,0,2,0,1,10
+MathWiki,What is the definition of an Exact Sequence?,"Let $G_1,\dots,G_n$ be groups. A sequence $G_1\to G_2\to\cdots\to G_n$ of homomorphisms $\phi_i:G_i\to G_{i+1}$ is said to beexact if $\im\phi_i=\ker\phi_{i+1}$ for all $i$. A short exact sequence is an exact sequence $1\to A\overset{\phi}{\to}B\overset{\psi}{\to}C\to1$; that is, a sequence for which $\phi$ is injective, $\psi$ is surjective, and $\im\phi=\ker\psi$. A long exact sequence is an exact sequence that is not short.",2,3,4,4,0,1,6,2,5
+Cybersecurity-Notes,What is the capital of France?,Paris,0,3,5,4,3,1,10,2,6
+MathWiki,What is the capital of France?,Paris,2,4,5,3,9,1,10,2,9
+CLE_Course,What are the operators?,"Multiplication, Division, Addition, Subtraction, Unary Minus, Remainder, Prefix and Postfix, Shortcut, Logical, Bitwise, Bit Shifting, Size",2,3,5,4,0,2,6,1,8
+FDA-Notes,What is the capital of France?,Paris,2,2,0,1,9,4,0,3,0
+CLE_Course,Which bitwise operators are there?,"& (ampersand) -> Bitwise conjunction (AND), | (bar) -> Bitwise disjunction (OR), ~ (tilde) -> Bitwise negation (NOT), ^ (caret) -> Bitwise exclusive disjunction (XOR)",0,4,3,3,4,1,9,2,8
+FDA-Notes,What is the capital of France?,Paris,0,2,0,4,0,1,0,3,0
+FDA-Notes,What is 1 + 1?,2,2,4,0,3,0,1,6,2,4
+CLE_Course,What is 1 + 1?,2,2,1,8,2,7,3,0,4,0
+Cybersecurity-Notes,What is CVE-2020-12271?,"Pre-Authentication SQL Injection, can allow exfiltration of XG firewall-resident data, which can contain local user credentials",1,2,0,1,0,3,0,4,0
