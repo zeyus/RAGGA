@@ -2,9 +2,17 @@
 
 import matplotlib.pyplot as plt
 import pandas as pd
+import seaborn as sns
 
 # open the report
 report = pd.read_csv("reports/report_2024-01-24_094330_cleaned.csv")
+
+fig_height = 8
+fig_width = 12
+fig_aspect = fig_width / fig_height
+plt.rcParams["figure.figsize"] = (fig_width, fig_height)  # type: ignore
+# set dpi
+plt.rcParams["figure.dpi"] = 300  # type: ignore
 
 # cols:
 # model,dataset,model_config,command_kw,documents,full_context,question,reference_answer,response,stdout,stderr
@@ -25,7 +33,6 @@ timings = report["stderr"].str.extract(  # type: ignore
     r"[.\n]*.*eval[^=]+=[^\d]+([\d\.]+)[^\d]+(\d+)[^\d]+([\d\.]+)[^\d]+([\d\.]+).*"
     r"[.\n]*.*total[^=]+=[^\d]+([\d\.]+).*"
 )
-print(timings)  # noqa: T201
 
 # rename the columns
 timings.columns = [
@@ -79,68 +86,97 @@ std_load_time = timings.groupby("model")["load_time"].std()
 # make a plot with error bars of the means and std per model
 # subplot per value
 # highlight the best model per value
-fig, axs = plt.subplots(1, 3, figsize=(15, 5))
+fig, axs = plt.subplots(1, 2, figsize=(fig_width, fig_height))
 axs[0].errorbar(  # type: ignore
     mean_prompt_eval_tokens_per_second.index,
     mean_prompt_eval_tokens_per_second,
     yerr=std_prompt_eval_tokens_per_second,
     fmt="o",
 )
-axs[0].set_title("prompt_eval_tokens_per_second")  # type: ignore
+axs[0].set_title("Prompt evaluation")  # type: ignore
 axs[0].set_ylabel("tokens per second")  # type: ignore
 axs[0].set_xlabel("model")  # type: ignore
-axs[0].tick_params(axis="x", rotation=90)  # type: ignore
+axs[0].tick_params(axis="x", rotation=0)  # type: ignore
 axs[1].errorbar(  # type: ignore
     mean_eval_tokens_per_second.index,
     mean_eval_tokens_per_second,
     yerr=std_eval_tokens_per_second,
     fmt="o",
 )
-axs[1].set_title("eval_tokens_per_second")  # type: ignore
+axs[1].set_title("Output Generation")  # type: ignore
 axs[1].set_ylabel("tokens per second")  # type: ignore
 axs[1].set_xlabel("model")  # type: ignore
-axs[1].tick_params(axis="x", rotation=90)  # type: ignore
-axs[2].errorbar(  # type: ignore
-    mean_load_time.index, mean_load_time, yerr=std_load_time, fmt="o",
-)
-axs[2].set_title("load_time")  # type: ignore
-axs[2].set_ylabel("time (ms)")  # type: ignore
-axs[2].set_xlabel("model")  # type: ignore
-axs[2].tick_params(axis="x", rotation=90)  # type: ignore
+axs[1].tick_params(axis="x", rotation=0)  # type: ignore
+# axs[2].errorbar(  # type: ignore
+#     mean_load_time.index, mean_load_time, yerr=std_load_time, fmt="o",
+# )
+# axs[2].set_title("load_time")  # type: ignore
+# axs[2].set_ylabel("time (ms)")  # type: ignore
+# axs[2].set_xlabel("model")  # type: ignore
+# axs[2].tick_params(axis="x", rotation=90)  # type: ignore
 
 # highlight the best model per value
-best_prompt_eval_tokens_per_second = mean_prompt_eval_tokens_per_second.idxmax()
-best_eval_tokens_per_second = mean_eval_tokens_per_second.idxmax()
-best_load_time = mean_load_time.idxmin()
-axs[0].scatter(  # type: ignore
-    best_prompt_eval_tokens_per_second,
-    mean_prompt_eval_tokens_per_second[best_prompt_eval_tokens_per_second],
-    marker="x",
-    s=100,
-    c="r"
-)
-axs[1].scatter(  # type: ignore
-    best_eval_tokens_per_second,
-    mean_eval_tokens_per_second[best_eval_tokens_per_second],
-    marker="x",
-    s=100,
-    c="r"
-)
-axs[2].scatter(  # type: ignore
-    best_load_time,
-    mean_load_time[best_load_time],
-    marker="x",
-    s=100,
-    c="r"
-)
+# best_prompt_eval_tokens_per_second = mean_prompt_eval_tokens_per_second.idxmax()
+# best_eval_tokens_per_second = mean_eval_tokens_per_second.idxmax()
+# best_load_time = mean_load_time.idxmin()
+# axs[0].scatter(  # type: ignore
+#     best_prompt_eval_tokens_per_second,
+#     mean_prompt_eval_tokens_per_second[best_prompt_eval_tokens_per_second],
+#     marker="x",
+#     s=100,
+#     c="r"
+# )
+# axs[1].scatter(  # type: ignore
+#     best_eval_tokens_per_second,
+#     mean_eval_tokens_per_second[best_eval_tokens_per_second],
+#     marker="x",
+#     s=100,
+#     c="r"
+# )
+# axs[2].scatter(  # type: ignore
+#     best_load_time,
+#     mean_load_time[best_load_time],
+#     marker="x",
+#     s=100,
+#     c="r"
+# )
 fig.tight_layout()
 fig.savefig("reports/timings.png")
 plt.close(fig)
 
+# same again but with SNS
 
+# just join the _mean and _std vars into a single df
 
+timings2 = timings[
+    timings["prompt_eval_time"] != 0
+][["model", "prompt_eval_tokens_per_second", "eval_tokens_per_second"]].melt(
+    id_vars="model", var_name="metric", value_name="value"
+)
+# update metric names
+timings2["metric"] = timings2["metric"].str.replace("_tokens_per_second", "")
+# replace _ with space
+timings2["metric"] = timings2["metric"].str.replace("prompt_eval", "Prompt Evaluation")
+timings2["metric"] = timings2["metric"].str.replace("eval", "Output Generation")
+model_names = list(set(timings2["model"]))
+model_names.sort()
+g = sns.catplot(
+    data=timings2,
+    x="model",
+    y="value",
+    hue="model",
+    kind="point",
+    errorbar="sd",
+    col="metric",
+    col_wrap=2,
+    linestyle="none",
+    order=model_names,
+)
 
+g.set_titles("{col_name}")
+g.set_xlabels("model")
+g.set_ylabels("tokens per second")
 
-
+plt.savefig("reports/timings2.png")
 
 

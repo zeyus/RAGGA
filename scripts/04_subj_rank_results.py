@@ -95,11 +95,13 @@ if __name__ == "__main__":
 
     fig, ax = plt.subplots()
     # plot the scores by model
+    model_names.sort()
     sns.boxplot(
         data=rankings_long.query("type == 'score'"),
         x="model",
         y="value",
         ax=ax,
+        order=model_names,
         fill=False,
         hue="model",
         gap=0.5,
@@ -110,6 +112,7 @@ if __name__ == "__main__":
         x="model",
         y="value",
         legend=False,
+        order=model_names,
         ax=ax,
         hue="model",
         alpha=0.3,
