@@ -119,6 +119,7 @@ if __name__ == "__main__":
     )
     # set title
     ax.set_title("Response Scores by Model")
+    ax.set_ylabel("score")
     # save the plot
     logging.info("Saving scores plot to reports/scores_by_model.png")
     fig.savefig("reports/scores_by_model.png")
