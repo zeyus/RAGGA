@@ -15,10 +15,24 @@ authors = [
 ]
 classifiers = [
   "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Education",
+  "Intended Audience :: End Users/Desktop",
+  "License :: OSI Approved :: MIT License",
+  "Natural Language :: English",
+  "Operating System :: OS Independent",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
+  "Topic :: Education :: Computer Aided Instruction (CAI)",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Scientific/Engineering :: Human Machine Interfaces",
+  "Topic :: Text Processing :: Linguistic",
+  "Topic :: Text Processing :: Markup :: Markdown",
+  "Topic :: Utilities",
+  "Typing :: Typed",
+
 ]
 [tool.hatch.metadata]
 allow-direct-references = true
@@ -69,13 +83,14 @@ python = ["3.11"]
 detached = true
 dependencies = [
   "black>=23.12.1",
-  "data-science-types>=0.2.23",
+  "git+https://github.com/stdedos/data-science-types",
   "mypy>=1.7.2",
   "pandas-stubs>=2.1.4",
   "ruff>=0.1.14",
   "types-PyYaml",
   "types-requests",
   "types-beautifulsoup4",
+  "types-seaborn",
 ]
 [tool.hatch.envs.lint.scripts]
 typing = "mypy --install-types --non-interactive {args:src/ragga tests}"
