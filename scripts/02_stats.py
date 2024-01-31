@@ -161,7 +161,7 @@ timings2["metric"] = timings2["metric"].str.replace("eval", "Output Generation")
 model_names = list(set(timings2["model"]))
 model_names.sort()
 g = sns.catplot(
-    data=timings2,
+    data=timings2.sort_values("model"),
     x="model",
     y="value",
     hue="model",

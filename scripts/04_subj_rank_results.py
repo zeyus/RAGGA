@@ -97,7 +97,7 @@ if __name__ == "__main__":
     # plot the scores by model
     model_names.sort()
     sns.boxplot(
-        data=rankings_long.query("type == 'score'"),
+        data=rankings_long.query("type == 'score'").sort_values("model"),
         x="model",
         y="value",
         ax=ax,
@@ -108,7 +108,7 @@ if __name__ == "__main__":
     )
     # add scatter plot with jitter
     sns.stripplot(
-        data=rankings_long.query("type == 'score'"),
+        data=rankings_long.query("type == 'score'").sort_values("model"),
         x="model",
         y="value",
         legend=False,
