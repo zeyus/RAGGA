@@ -10,12 +10,19 @@
 - [Installation](#installation)
 - [License](#license)
 
+## RAGGA
+
+What is this? Load quantized LLMs and run them on your local devices. Interact with your own notes (currently markdown notes are supported by default) and ask questions about what you have written and get relevant answers from what you have written! Recommended model is TinyLlama-chat https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/blob/main/README.md based on its speed of token generation and it's low system requirements. Try the 8-bit quantized model to start with and if that's still too beefy you can always try 5, 4, etc.
+
+Basically, RAGGA is an local LLM based AI assistant that cares about your privacy, and does not require running things via untrusted third party APIs. The one exception is the web search feature, which can be completely disabled, so nothing ever leaves your system.
+
 ## Prerequisites
 
 Due to issues with [hatch not allowing pip options completely](https://github.com/pypa/hatch/issues/838):
 
 - PyTorch needs to be installed manually
 - llama-cpp-python needs to be installed manually
+- meaning you need a c++ compiler (e.g. Visual Studio 2022 Community C++, build-essentials, etc)
 
 When the issues are resolved with hatch, this will become significantly easier to install.
 
