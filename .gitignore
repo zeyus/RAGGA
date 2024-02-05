@@ -168,3 +168,4 @@ _config.yaml
 .test_cache/
 
 reports/
+data/

@@ -12,17 +12,13 @@ encoder:
 
 retriever:
   splitting:
-    chunk_size: 512
-    chunk_overlap: 16
+    chunk_size: 256
+    chunk_overlap: 64
   num_docs: 8
   cache_dir: ".cache"
 
 generator:
-  llm_path: "models/phi-2.Q8_0.gguf"
-  hf_tokenizer: "microsoft/phi-2" # huggingface model path for use in loading the tokenizer
-  # hf_tokenizer: "microsoft/phi-2" # phi-2
-  # hf_tokenizer: "KoboldAI/llama2-tokenizer" # llama-2-7b-chat
-  # hf_tokenizer: "TinyLlama/TinyLlama-1.1B-Chat-v1.0" # TinyLlama-1-chat
+  llm_path: "models/tinyllama-1.1b-chat-v1.0.Q8_0.gguf"
   context_length: 2048
   temperature: 0.8
   max_tokens: 256
@@ -35,7 +31,7 @@ generator:
   autoflush: True # automatically clear the model stdout and stderr buffers, False to manually control flushing
 
 dataset:
-  path: "data"
+  path: "./data"
   recursive: True
   show_progress: True # show progress bar when loading dataset
   use_multithreading: True
