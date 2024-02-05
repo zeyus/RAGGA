@@ -7,14 +7,32 @@
 
 **Table of Contents**
 
-- [Installation](#installation)
-- [License](#license)
+- [RAGGA: Retrieval Augmented Generation General Assistant](#ragga-retrieval-augmented-generation-general-assistant)
+  - [RAGGA](#ragga)
+  - [Example Usage](#example-usage)
+  - [Prerequisites](#prerequisites)
+    - [CPU (Windows, Linux, and macOS)](#cpu-windows-linux-and-macos)
+    - [GPU (Windows and Linux only)](#gpu-windows-and-linux-only)
+  - [Installation](#installation)
+    - [CPU (Windows, Linux, and macOS)](#cpu-windows-linux-and-macos-1)
+    - [GPU (Windows and Linux only)](#gpu-windows-and-linux-only-1)
+  - [License](#license)
 
 ## RAGGA
 
 What is this? Load quantized LLMs and run them on your local devices. Interact with your own notes (currently markdown notes are supported by default) and ask questions about what you have written and get relevant answers from what you have written! Recommended model is TinyLlama-chat https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/blob/main/README.md based on its speed of token generation and it's low system requirements. Try the 8-bit quantized model to start with and if that's still too beefy you can always try 5, 4, etc.
 
 Basically, RAGGA is an local LLM based AI assistant that cares about your privacy, and does not require running things via untrusted third party APIs. The one exception is the web search feature, which can be completely disabled, so nothing ever leaves your system.
+
+## Example Usage
+
+Download one of the TinyLlama-chat quantized model (e.g. [8-bit quantized TinyLlama-1.1B-Chat-v1.0-GGUF](https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/blob/main/tinyllama-1.1b-chat-v1.0.Q8_0.gguf)) and copy it to the models directory.
+
+Install all the prerequistes and then install RAGGA.
+
+Edit the [`config.yaml`](config.yaml) file to point to the model you downloaded in the `generator:` `llm_path:`, and update the `dataset:` `path:` key to point to your directory containing markdown files.
+
+Run the [`tinyllama_example.py`](tinyllama_example.py) script to try it out.
 
 ## Prerequisites
 
