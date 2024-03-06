@@ -16,6 +16,7 @@
   - [Installation](#installation)
     - [CPU (Windows, Linux, and macOS)](#cpu-windows-linux-and-macos-1)
     - [GPU (Windows and Linux only)](#gpu-windows-and-linux-only-1)
+  - [Model Selection](#model-selection)
   - [License](#license)
 
 ## RAGGA
@@ -96,6 +97,14 @@ pip install 'ragga[cpu] @ https://github.com/zeyus/RAGGA/releases/download/v0.0.
 ```console
 pip install 'ragga @ https://github.com/zeyus/RAGGA/releases/download/v0.0.5/ragga-0.0.5-py3-none-any.whl'
 ```
+
+## Model Selection
+
+Subjective evaluation of 3 different models was performed by generating responses to general and dataset-specific questions for 4 publicly available Obsidian notes repositories. The results for response quality were ranked from 0-10 for each question, responses were shown anonymously so no indication of which model generated the responses was visible.
+
+![reports/scores_by_model.png](reports/scores_by_model.png)
+
+The phi-2 and phi-2 chat used the same base model but a different prompt template. For evaluation and rating details see [model_tests.py](model_tests.py) and [scripts/03_rank_output.py](scripts/03_rank_output.py).
 
 ## License
 
